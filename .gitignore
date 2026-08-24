@@ -1,0 +1,22 @@
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Go
+bin/
+coverage.out
+
+# C/C++ and eBPF
+build/
+cmake-build-*/
+compile_commands.json
+*.o
+*.a
+*.so
+*.skel.h
+agent/ebpf/vmlinux.h
+
+# Runtime
+*.log
+data/

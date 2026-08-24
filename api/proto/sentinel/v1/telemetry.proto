@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package sentinel.v1;
+
+option go_package = "github.com/ccKccK-JF/SentinelMesh/gen/go/sentinel/v1;sentinelv1";
+
+// TelemetryService maintains a long-lived stream between a node agent and the
+// control plane. The server acknowledges each accepted batch and can later
+// piggyback configuration versions on acknowledgements.
+service TelemetryService {
+  rpc Stream(stream TelemetryEnvelope) returns (stream CollectorAck);
+}
+
+message TelemetryEnvelope {
+  oneof payload {
+    AgentHello hello = 1;
+    MetricBatch batch = 2;
+    Heartbeat heartbeat = 3;
+  }
+}
+
+message AgentHello {
+  string node_id = 1;
+  string hostname = 2;
+  string ip_address = 3;
+  string agent_version = 4;
+  string boot_id = 5;
+}
+
+message MetricBatch {
+  uint64 sequence = 1;
+  int64 observed_at_unix_nano = 2;
+  repeated MetricSample metrics = 3;
+  repeated KernelEvent kernel_events = 4;
+}
+
+message MetricSample {
+  string name = 1;
+  double value = 2;
+  string unit = 3;
+  map<string, string> labels = 4;
+}
+
+message KernelEvent {
+  string type = 1;
+  int64 observed_at_unix_nano = 2;
+  uint32 process_id = 3;
+  string process_name = 4;
+  uint64 latency_ns = 5;
+  map<string, string> attributes = 6;
+}
+
+message Heartbeat {
+  uint64 last_sequence = 1;
+  int64 sent_at_unix_nano = 2;
+}
+
+message CollectorAck {
+  uint64 accepted_sequence = 1;
+  uint64 config_version = 2;
+  uint32 accepted_samples = 3;
+  uint32 dropped_samples = 4;
+  string message = 5;
+}
