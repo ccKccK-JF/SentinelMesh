@@ -4,7 +4,7 @@
 
 面向游戏服务器与通用 Linux 服务的性能诊断和自适应调度平台。项目使用 **Go 构建控制面**、使用 **C++ 构建节点 Agent**，并通过 **C/eBPF** 观测调度、块 I/O 与 TCP 内核路径。
 
-> 当前状态：M1 开发中。仓库只把已经落地、能够测试的能力标为完成；规划中的能力不会伪装成已实现功能。
+> 当前状态：M1.5 已完成，M2 内核观测开发中。仓库只把已经落地、能够测试的能力标为完成；规划中的能力不会伪装成已实现功能。
 
 ## 为什么重新开发
 
@@ -45,6 +45,7 @@ procfs / cgroup     eBPF programs
 | HTTP 查询接口 | ✅ | `/healthz`、`/v1/nodes`、`/v1/nodes/{id}` |
 | Go 模拟 Agent | ✅ | 用于 Windows/Linux 的端到端开发验证 |
 | C++ procfs Agent | ✅ M1 | CPU、内存、Load、网络指标采集与 JSON 输出 |
+| C++ gRPC Agent | ✅ M1.5 | 双向流、ACK续传语义、指数退避重连、跨语言E2E |
 | eBPF 调度延迟探针 | 🚧 | 内核程序骨架已加入，用户态 Loader 待 M2 接入 |
 | Prometheus/Grafana | ⏳ M2 | 尚未实现 |
 | 自适应路由权重 | ⏳ M3 | 尚未实现 |
@@ -81,13 +82,28 @@ curl http://127.0.0.1:8080/v1/nodes
 go test ./...
 ```
 
-C++ Agent 需要 Linux 和 CMake 3.20+：
+C++ Agent 需要 Linux、CMake 3.20+、Protobuf 和 gRPC C++：
 
 ```bash
+sudo apt install -y cmake g++ libgrpc++-dev protobuf-compiler-grpc
 cmake -S agent -B build/agent -DSENTINEL_BUILD_TESTS=ON
 cmake --build build/agent -j
 ctest --test-dir build/agent --output-on-failure
-./build/agent/sentinel-agent --once
+
+# 控制面启动后，发送一个真实procfs指标批次
+./build/agent/sentinel-agent \
+  --manager-address 127.0.0.1:50051 \
+  --node-id game-1 \
+  --once
+
+# 只在终端打印指标，不连接控制面
+./build/agent/sentinel-agent --stdout --once
+```
+
+跨语言端到端验证：
+
+```bash
+./scripts/test-e2e.sh
 ```
 
 完整环境和故障排查见 [docs/development.md](docs/development.md)。

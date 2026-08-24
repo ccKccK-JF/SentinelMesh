@@ -26,9 +26,17 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache: true
+      - name: Install gRPC build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libgrpc++-dev protobuf-compiler-grpc
       - name: Configure
         run: cmake -S agent -B build/agent -DSENTINEL_BUILD_TESTS=ON
       - name: Build
         run: cmake --build build/agent --parallel
       - name: Test
         run: ctest --test-dir build/agent --output-on-failure
+      - name: Cross-language e2e
+        run: ./scripts/test-e2e.sh

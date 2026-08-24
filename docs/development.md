@@ -23,7 +23,13 @@ go run ./cmd/control-plane --grpc-address 0.0.0.0:50051 --http-address 0.0.0.0:8
 
 ## C++ Agent
 
-要求 Linux、CMake 3.20+ 和支持 C++20 的编译器。M1 默认只构建 procfs 采集器，不要求 gRPC 或 libbpf：
+要求 Linux、CMake 3.20+、支持 C++20 的编译器、Protobuf和gRPC C++。Ubuntu安装命令：
+
+```bash
+sudo apt install -y cmake g++ libgrpc++-dev protobuf-compiler-grpc
+```
+
+构建与测试：
 
 ```bash
 cmake -S agent -B build/agent -DSENTINEL_BUILD_TESTS=ON
@@ -34,7 +40,22 @@ ctest --test-dir build/agent --output-on-failure
 `--proc-root` 可以指向测试夹具或容器挂载的宿主机 procfs：
 
 ```bash
-./build/agent/sentinel-agent --proc-root /proc --once
+./build/agent/sentinel-agent --proc-root /proc --stdout --once
+```
+
+连接Go控制面并发送一个批次：
+
+```bash
+./build/agent/sentinel-agent \
+  --manager-address 127.0.0.1:50051 \
+  --node-id game-1 \
+  --once
+```
+
+跨语言端到端测试会启动独立控制面、运行C++ Agent并验证HTTP节点快照：
+
+```bash
+./scripts/test-e2e.sh
 ```
 
 ## eBPF

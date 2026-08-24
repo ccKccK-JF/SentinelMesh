@@ -62,7 +62,7 @@ func (s *Server) Stream(stream grpc.BidiStreamingServer[sentinelv1.TelemetryEnve
 				return status.Error(codes.InvalidArgument, "node_id must match [a-zA-Z0-9][a-zA-Z0-9._-]{0,127}")
 			}
 			nodeID = hello.NodeId
-			s.store.Connect(store.Hello{
+			snapshot := s.store.Connect(store.Hello{
 				NodeID:       hello.NodeId,
 				Hostname:     hello.Hostname,
 				IPAddress:    hello.IpAddress,
@@ -70,8 +70,9 @@ func (s *Server) Stream(stream grpc.BidiStreamingServer[sentinelv1.TelemetryEnve
 				BootID:       hello.BootId,
 			})
 			if err := stream.Send(&sentinelv1.CollectorAck{
-				ConfigVersion: s.configVersion,
-				Message:       "agent registered",
+				AcceptedSequence: snapshot.LastSequence,
+				ConfigVersion:    s.configVersion,
+				Message:          "agent registered",
 			}); err != nil {
 				return err
 			}

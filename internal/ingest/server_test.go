@@ -43,8 +43,12 @@ func TestTelemetryStreamAcceptsBatch(t *testing.T) {
 	}}); err != nil {
 		t.Fatalf("send hello: %v", err)
 	}
-	if _, err := stream.Recv(); err != nil {
+	helloAck, err := stream.Recv()
+	if err != nil {
 		t.Fatalf("receive hello ack: %v", err)
+	}
+	if helloAck.AcceptedSequence != 0 {
+		t.Fatalf("new agent should start at sequence zero, got %d", helloAck.AcceptedSequence)
 	}
 
 	if err := stream.Send(&sentinelv1.TelemetryEnvelope{Payload: &sentinelv1.TelemetryEnvelope_Batch{
@@ -70,4 +74,27 @@ func TestTelemetryStreamAcceptsBatch(t *testing.T) {
 	if !ok || snapshot.LastSequence != 1 {
 		t.Fatalf("batch was not stored: %+v", snapshot)
 	}
+
+	if err := stream.CloseSend(); err != nil {
+		t.Fatalf("close first stream: %v", err)
+	}
+	_, _ = stream.Recv()
+
+	reconnected, err := sentinelv1.NewTelemetryServiceClient(connection).Stream(ctx)
+	if err != nil {
+		t.Fatalf("reconnect stream: %v", err)
+	}
+	if err := reconnected.Send(&sentinelv1.TelemetryEnvelope{Payload: &sentinelv1.TelemetryEnvelope_Hello{
+		Hello: &sentinelv1.AgentHello{NodeId: "game-1", Hostname: "game-1", BootId: "boot-1"},
+	}}); err != nil {
+		t.Fatalf("send reconnect hello: %v", err)
+	}
+	reconnectAck, err := reconnected.Recv()
+	if err != nil {
+		t.Fatalf("receive reconnect ack: %v", err)
+	}
+	if reconnectAck.AcceptedSequence != 1 {
+		t.Fatalf("expected reconnect sequence 1, got %d", reconnectAck.AcceptedSequence)
+	}
+	_ = reconnected.CloseSend()
 }

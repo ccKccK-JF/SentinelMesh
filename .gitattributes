@@ -6,4 +6,9 @@
 *.cpp text eol=lf
 *.h text eol=lf
 *.md text eol=lf
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+Dockerfile text eol=lf
+*.Dockerfile text eol=lf
 Makefile text eol=lf

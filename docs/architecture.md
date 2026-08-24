@@ -38,6 +38,8 @@ Agent 建立流后必须先发送 `AgentHello`。此后的 `MetricBatch.sequence
 - `dropped_samples`：因校验或限流丢弃的样本数；
 - `config_version`：M3 用于下发配置版本。
 
+控制面也会在Hello确认中返回该节点此前接受的最大序列号。Agent重连后从下一序列继续；如果批次已送达但ACK在断线时丢失，Agent可以重发同一序列，控制面返回已接受序列而不会重复应用指标。连续连接失败时Agent采用1秒到30秒的指数退避。
+
 协议刻意使用明确的单位字段，内部约定：百分比为 `0..100`，延迟用纳秒，字节速率用 `bytes_per_second`。
 
 ## 4. 健康评分
