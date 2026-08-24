@@ -46,7 +46,28 @@ sudo ./scripts/test-blockio.sh
 
 这些数值只证明请求关联、读写分类、直方图聚合和分位数链路正确。虚拟化和宿主机负载会显著影响绝对延迟，因此不能把该样例直接写成性能优化结论。
 
-## 4. 跨语言遥测
+## 4. TCP网络质量
+
+运行：
+
+```bash
+sudo ./scripts/test-tcp.sh
+```
+
+脚本在回环接口使用`tc netem`注入15ms延迟和30%丢包，使用4路iperf3长连接触发数据段重传，并通过`SO_LINGER=0`制造连接复位。2026-08-25的一次样例窗口峰值如下：
+
+| 指标 | 样例值 |
+|---|---:|
+| RTT样本数 | 84 |
+| RTT P95 | 524,288 μs |
+| RTT P99 | 524,288 μs |
+| TCP重传 | 26 |
+| 接收RST | 1 |
+| 发送RST | 2 |
+
+高丢包会同时抬高RTT估计与重传次数；样例值用于证明tracepoint、per-CPU聚合和窗口增量链路，不代表生产网络基线。
+
+## 5. 跨语言遥测
 
 ```bash
 ./scripts/test-e2e.sh
@@ -56,14 +77,16 @@ sudo ./scripts/test-blockio.sh
 
 块I/O特权链路还完成了以下人工回归：fio运行期间启动带eBPF的C++ Agent，连续上报4个批次；Go节点快照同时包含读写延迟、调度延迟、CPU、内存和网络指标。
 
-## 5. CI门禁
+TCP指标也已通过C++ Agent的protobuf批次发送到Go控制面，并可在HTTP节点快照中查询。一次逐窗口轮询回归捕获到RTT样本44、重传11、接收RST 1和发送RST 4，证明非零指标跨越了完整链路。
+
+## 6. CI门禁
 
 GitHub Actions对每次提交执行：
 
 - `go test -race ./...`
 - `go vet ./...`
-- CMake构建两个BPF对象和C++ Agent
-- CTest解析器、调度直方图和块I/O直方图测试
+- CMake构建三个BPF对象和C++ Agent
+- CTest解析器、调度、块I/O和TCP直方图测试
 - C++ Agent到Go控制面的跨语言E2E
 
 特权eBPF加载不放在公共Runner中执行，使用本地显式脚本验证，避免把公共CI环境的内核权限误当成代码失败。

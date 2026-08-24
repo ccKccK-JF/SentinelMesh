@@ -69,7 +69,7 @@ sudo ./build/agent/sentinel-agent --enable-ebpf --stdout --once
 sudo ./scripts/test-ebpf.sh
 ```
 
-`--enable-ebpf`同时打开当前所有探针；排查兼容性时也可以分别使用`--enable-runqlat`或`--enable-blockio`。
+`--enable-ebpf`同时打开当前所有探针；排查兼容性时也可以分别使用`--enable-runqlat`、`--enable-blockio`或`--enable-tcp`。
 
 输出会增加：
 
@@ -80,12 +80,27 @@ sudo ./scripts/test-ebpf.sh
 - `block.io.read.latency.p99.microseconds`
 - `block.io.write.latency.p95.microseconds`
 - `block.io.write.latency.p99.microseconds`
+- `block.io.read.events`
+- `block.io.write.events`
+- `tcp.rtt.p95.microseconds`
+- `tcp.rtt.p99.microseconds`
+- `tcp.rtt.samples`
+- `tcp.retransmissions`
+- `tcp.receive_resets`
+- `tcp.send_resets`
 
 块I/O验证脚本使用fio持续制造直接随机读写，确认请求关联、读写分类和窗口分位数：
 
 ```bash
 sudo apt install -y fio
 sudo ./scripts/test-blockio.sh
+```
+
+TCP验证脚本在回环接口注入15ms延迟和30%丢包，通过iperf3持续流量触发重传，并用`SO_LINGER=0`连接触发收发RST。脚本退出时会移除netem规则：
+
+```bash
+sudo apt install -y iproute2 iperf3 python3
+sudo ./scripts/test-tcp.sh
 ```
 
 容器验证需要访问宿主机内核能力；仅限开发环境时可使用`--privileged`，正式部署不应长期授予完整特权。

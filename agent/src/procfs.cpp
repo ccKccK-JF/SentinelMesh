@@ -221,6 +221,26 @@ std::string ToJson(const Snapshot& snapshot) {
     output << ",\"block.io.write.events\":"
            << *snapshot.block_io_write_events;
   }
+  if (snapshot.tcp_rtt_p95_microseconds) {
+    output << ",\"tcp.rtt.p95.microseconds\":"
+           << *snapshot.tcp_rtt_p95_microseconds;
+  }
+  if (snapshot.tcp_rtt_p99_microseconds) {
+    output << ",\"tcp.rtt.p99.microseconds\":"
+           << *snapshot.tcp_rtt_p99_microseconds;
+  }
+  if (snapshot.tcp_rtt_samples) {
+    output << ",\"tcp.rtt.samples\":" << *snapshot.tcp_rtt_samples;
+  }
+  if (snapshot.tcp_retransmissions) {
+    output << ",\"tcp.retransmissions\":" << *snapshot.tcp_retransmissions;
+  }
+  if (snapshot.tcp_receive_resets) {
+    output << ",\"tcp.receive_resets\":" << *snapshot.tcp_receive_resets;
+  }
+  if (snapshot.tcp_send_resets) {
+    output << ",\"tcp.send_resets\":" << *snapshot.tcp_send_resets;
+  }
   output << "},\"network\":[";
   for (std::size_t i = 0; i < snapshot.network.size(); ++i) {
     if (i != 0) output << ',';

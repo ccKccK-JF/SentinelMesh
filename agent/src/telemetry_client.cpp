@@ -107,6 +107,30 @@ bool TelemetryClient::SendSnapshot(std::uint64_t sequence,
     AddMetric(batch, "block.io.write.events",
               static_cast<double>(*snapshot.block_io_write_events), "count");
   }
+  if (snapshot.tcp_rtt_p95_microseconds) {
+    AddMetric(batch, "tcp.rtt.p95.microseconds",
+              *snapshot.tcp_rtt_p95_microseconds, "microseconds");
+  }
+  if (snapshot.tcp_rtt_p99_microseconds) {
+    AddMetric(batch, "tcp.rtt.p99.microseconds",
+              *snapshot.tcp_rtt_p99_microseconds, "microseconds");
+  }
+  if (snapshot.tcp_rtt_samples) {
+    AddMetric(batch, "tcp.rtt.samples",
+              static_cast<double>(*snapshot.tcp_rtt_samples), "count");
+  }
+  if (snapshot.tcp_retransmissions) {
+    AddMetric(batch, "tcp.retransmissions",
+              static_cast<double>(*snapshot.tcp_retransmissions), "count");
+  }
+  if (snapshot.tcp_receive_resets) {
+    AddMetric(batch, "tcp.receive_resets",
+              static_cast<double>(*snapshot.tcp_receive_resets), "count");
+  }
+  if (snapshot.tcp_send_resets) {
+    AddMetric(batch, "tcp.send_resets",
+              static_cast<double>(*snapshot.tcp_send_resets), "count");
+  }
 
   for (const auto& network : snapshot.network) {
     auto* receive = batch->add_metrics();

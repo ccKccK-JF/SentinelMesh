@@ -58,6 +58,12 @@ struct Snapshot {
   std::optional<double> block_io_write_p95_microseconds;
   std::optional<double> block_io_write_p99_microseconds;
   std::optional<std::uint64_t> block_io_write_events;
+  std::optional<double> tcp_rtt_p95_microseconds;
+  std::optional<double> tcp_rtt_p99_microseconds;
+  std::optional<std::uint64_t> tcp_rtt_samples;
+  std::optional<std::uint64_t> tcp_retransmissions;
+  std::optional<std::uint64_t> tcp_receive_resets;
+  std::optional<std::uint64_t> tcp_send_resets;
   std::vector<NetRate> network;
 };
 

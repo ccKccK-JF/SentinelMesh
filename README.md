@@ -48,6 +48,7 @@ procfs / cgroup     eBPF programs
 | C++ gRPC Agent | ✅ M1.5 | 双向流、ACK续传语义、指数退避重连、跨语言E2E |
 | eBPF 调度延迟探针 | ✅ M2 | CO-RE内核程序、libbpf Loader、per-CPU直方图、P95/P99上报 |
 | eBPF 块I/O延迟探针 | ✅ M2 | request指针关联、读写分离直方图、fio故障注入验证 |
+| eBPF TCP质量探针 | ✅ M2 | RTT直方图、重传与收发RST计数、netem/iperf3故障注入验证 |
 | Prometheus/Grafana | ⏳ M2 | 尚未实现 |
 | 自适应路由权重 | ⏳ M3 | 尚未实现 |
 
@@ -109,6 +110,10 @@ sudo ./scripts/test-ebpf.sh
 # 使用fio制造随机读写并验证读/写延迟指标
 sudo apt install -y fio
 sudo ./scripts/test-blockio.sh
+
+# 使用netem、iperf3和本地RST负载验证TCP指标
+sudo apt install -y iproute2 iperf3 python3
+sudo ./scripts/test-tcp.sh
 ```
 
 跨语言端到端验证：

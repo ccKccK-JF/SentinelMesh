@@ -28,6 +28,21 @@ int main() {
   assert(network[0].receive_drops == 2);
   assert(network[0].transmit_drops == 3);
 
+  sentinel::Snapshot tcp_snapshot;
+  tcp_snapshot.tcp_rtt_p95_microseconds = 32768.0;
+  tcp_snapshot.tcp_rtt_p99_microseconds = 65536.0;
+  tcp_snapshot.tcp_rtt_samples = 84;
+  tcp_snapshot.tcp_retransmissions = 26;
+  tcp_snapshot.tcp_receive_resets = 1;
+  tcp_snapshot.tcp_send_resets = 2;
+  const auto json = sentinel::ToJson(tcp_snapshot);
+  assert(json.find("\"tcp.rtt.p95.microseconds\":32768.00") !=
+         std::string::npos);
+  assert(json.find("\"tcp.rtt.samples\":84") != std::string::npos);
+  assert(json.find("\"tcp.retransmissions\":26") != std::string::npos);
+  assert(json.find("\"tcp.receive_resets\":1") != std::string::npos);
+  assert(json.find("\"tcp.send_resets\":2") != std::string::npos);
+
   std::cout << "procfs parser tests passed\n";
   return 0;
 }

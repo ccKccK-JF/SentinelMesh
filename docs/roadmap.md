@@ -17,7 +17,7 @@
 - [x] C++ libbpf CO-RE Loader
 - [x] 调度等待延迟直方图与P95/P99上报
 - [x] 块 I/O 请求关联、读写延迟直方图与fio验证
-- [ ] TCP RTT、重传和异常关闭
+- [x] TCP RTT、重传和异常关闭
 - [ ] Ring Buffer 丢失事件计数
 - [ ] Prometheus 指标和 Grafana Dashboard
 

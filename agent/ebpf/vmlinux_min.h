@@ -15,4 +15,8 @@ struct request {
   __u32 cmd_flags;
 } __attribute__((preserve_access_index));
 
+struct trace_event_raw_tcp_probe {
+  __u32 srtt;
+} __attribute__((preserve_access_index));
+
 #endif  // SENTINEL_VMLINUX_MIN_H_

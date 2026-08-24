@@ -13,6 +13,7 @@
 #include "sentinel/blockio_probe.hpp"
 #include "sentinel/procfs.hpp"
 #include "sentinel/runqlat_probe.hpp"
+#include "sentinel/tcp_probe.hpp"
 #include "sentinel/telemetry_client.hpp"
 
 namespace {
@@ -23,11 +24,13 @@ struct Options {
   std::string node_id;
   std::filesystem::path runqlat_object;
   std::filesystem::path blocklat_object;
+  std::filesystem::path tcplat_object;
   std::chrono::seconds interval{5};
   bool once{false};
   bool stdout_only{false};
   bool enable_runqlat{false};
   bool enable_blockio{false};
+  bool enable_tcp{false};
 };
 
 std::string Hostname() {
@@ -62,10 +65,13 @@ Options ParseOptions(int argc, char** argv) {
     } else if (argument == "--enable-ebpf") {
       options.enable_runqlat = true;
       options.enable_blockio = true;
+      options.enable_tcp = true;
     } else if (argument == "--enable-runqlat") {
       options.enable_runqlat = true;
     } else if (argument == "--enable-blockio") {
       options.enable_blockio = true;
+    } else if (argument == "--enable-tcp") {
+      options.enable_tcp = true;
     } else if (argument == "--proc-root" && i + 1 < argc) {
       options.proc_root = argv[++i];
     } else if (argument == "--manager-address" && i + 1 < argc) {
@@ -76,6 +82,8 @@ Options ParseOptions(int argc, char** argv) {
       options.runqlat_object = argv[++i];
     } else if (argument == "--blocklat-object" && i + 1 < argc) {
       options.blocklat_object = argv[++i];
+    } else if (argument == "--tcplat-object" && i + 1 < argc) {
+      options.tcplat_object = argv[++i];
     } else if (argument == "--interval" && i + 1 < argc) {
       const auto seconds = std::stoul(argv[++i]);
       if (seconds == 0) throw std::invalid_argument("interval must be positive");
@@ -93,13 +101,18 @@ Options ParseOptions(int argc, char** argv) {
     options.blocklat_object =
         std::filesystem::absolute(argv[0]).parent_path() / "blocklat.bpf.o";
   }
+  if (options.tcplat_object.empty()) {
+    options.tcplat_object =
+        std::filesystem::absolute(argv[0]).parent_path() / "tcplat.bpf.o";
+  }
   return options;
 }
 
 sentinel::Snapshot CollectSnapshot(
     sentinel::ProcfsCollector* collector,
     sentinel::RunQueueLatencyProbe* runqlat_probe,
-    sentinel::BlockIoLatencyProbe* blockio_probe) {
+    sentinel::BlockIoLatencyProbe* blockio_probe,
+    sentinel::TcpMetricsProbe* tcp_probe) {
   auto snapshot = collector->Collect();
   if (runqlat_probe != nullptr) {
     const auto latency = runqlat_probe->Collect();
@@ -109,6 +122,19 @@ sentinel::Snapshot CollectSnapshot(
       snapshot.scheduler_run_queue_p99_microseconds =
           latency->p99_microseconds;
       snapshot.scheduler_run_queue_events = latency->events;
+    }
+  }
+  if (tcp_probe != nullptr) {
+    const auto tcp = tcp_probe->Collect();
+    if (tcp) {
+      if (tcp->rtt) {
+        snapshot.tcp_rtt_p95_microseconds = tcp->rtt->p95_microseconds;
+        snapshot.tcp_rtt_p99_microseconds = tcp->rtt->p99_microseconds;
+        snapshot.tcp_rtt_samples = tcp->rtt->events;
+      }
+      snapshot.tcp_retransmissions = tcp->retransmissions;
+      snapshot.tcp_receive_resets = tcp->receive_resets;
+      snapshot.tcp_send_resets = tcp->send_resets;
     }
   }
   if (blockio_probe != nullptr) {
@@ -135,10 +161,12 @@ sentinel::Snapshot CollectSnapshot(
 
 int RunStdout(const Options& options, sentinel::ProcfsCollector* collector,
               sentinel::RunQueueLatencyProbe* runqlat_probe,
-              sentinel::BlockIoLatencyProbe* blockio_probe) {
+              sentinel::BlockIoLatencyProbe* blockio_probe,
+              sentinel::TcpMetricsProbe* tcp_probe) {
   do {
     std::cout << sentinel::ToJson(
-                     CollectSnapshot(collector, runqlat_probe, blockio_probe))
+                     CollectSnapshot(collector, runqlat_probe, blockio_probe,
+                                     tcp_probe))
               << std::endl;
     if (options.once) return 0;
     std::this_thread::sleep_for(options.interval);
@@ -147,12 +175,13 @@ int RunStdout(const Options& options, sentinel::ProcfsCollector* collector,
 
 int RunGrpc(const Options& options, sentinel::ProcfsCollector* collector,
             sentinel::RunQueueLatencyProbe* runqlat_probe,
-            sentinel::BlockIoLatencyProbe* blockio_probe) {
+            sentinel::BlockIoLatencyProbe* blockio_probe,
+            sentinel::TcpMetricsProbe* tcp_probe) {
   const sentinel::AgentIdentity identity{
       .node_id = options.node_id,
       .hostname = Hostname(),
       .ip_address = "",
-      .agent_version = "sentinel-agent/0.3.0",
+      .agent_version = "sentinel-agent/0.4.0",
       .boot_id = ReadFirstLine(options.proc_root / "sys/kernel/random/boot_id"),
   };
   sentinel::TelemetryClient client(options.manager_address);
@@ -176,7 +205,7 @@ int RunGrpc(const Options& options, sentinel::ProcfsCollector* collector,
 
     while (true) {
       const auto snapshot =
-          CollectSnapshot(collector, runqlat_probe, blockio_probe);
+          CollectSnapshot(collector, runqlat_probe, blockio_probe, tcp_probe);
       if (!client.SendSnapshot(next_sequence, UnixNanos(), snapshot)) {
         std::cerr << "send failed: " << client.last_error() << std::endl;
         break;
@@ -200,6 +229,7 @@ int main(int argc, char** argv) {
     sentinel::ProcfsCollector collector(options.proc_root);
     std::unique_ptr<sentinel::RunQueueLatencyProbe> runqlat_probe;
     std::unique_ptr<sentinel::BlockIoLatencyProbe> blockio_probe;
+    std::unique_ptr<sentinel::TcpMetricsProbe> tcp_probe;
     if (options.enable_runqlat) {
       runqlat_probe = std::make_unique<sentinel::RunQueueLatencyProbe>();
       if (!runqlat_probe->Open(options.runqlat_object)) {
@@ -220,16 +250,26 @@ int main(int argc, char** argv) {
                 << options.blocklat_object << std::endl;
     }
 
+    if (options.enable_tcp) {
+      tcp_probe = std::make_unique<sentinel::TcpMetricsProbe>();
+      if (!tcp_probe->Open(options.tcplat_object)) {
+        throw std::runtime_error("enable TCP eBPF probe: " +
+                                 tcp_probe->last_error());
+      }
+      std::cerr << "TCP eBPF probe attached from " << options.tcplat_object
+                << std::endl;
+    }
+
     // CPU and rate metrics require a delta between two samples.
     collector.Collect();
     std::this_thread::sleep_for(std::chrono::milliseconds(250));
 
     if (options.stdout_only) {
       return RunStdout(options, &collector, runqlat_probe.get(),
-                       blockio_probe.get());
+                       blockio_probe.get(), tcp_probe.get());
     }
     return RunGrpc(options, &collector, runqlat_probe.get(),
-                   blockio_probe.get());
+                   blockio_probe.get(), tcp_probe.get());
   } catch (const std::exception& error) {
     std::cerr << "sentinel-agent: " << error.what() << std::endl;
     return 1;

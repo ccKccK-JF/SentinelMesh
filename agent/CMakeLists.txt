@@ -51,6 +51,7 @@ target_link_libraries(sentinel_proto PUBLIC protobuf::libprotobuf gRPC::grpc++)
 
 set(SENTINEL_BPF_OBJECT "${CMAKE_CURRENT_BINARY_DIR}/runqlat.bpf.o")
 set(SENTINEL_BLOCKIO_BPF_OBJECT "${CMAKE_CURRENT_BINARY_DIR}/blocklat.bpf.o")
+set(SENTINEL_TCP_BPF_OBJECT "${CMAKE_CURRENT_BINARY_DIR}/tcplat.bpf.o")
 add_custom_command(
     OUTPUT "${SENTINEL_BPF_OBJECT}"
     COMMAND "${CLANG_EXECUTABLE}"
@@ -83,9 +84,28 @@ add_custom_command(
         ${CMAKE_CURRENT_SOURCE_DIR}/ebpf/vmlinux_min.h
     VERBATIM
 )
+add_custom_command(
+    OUTPUT "${SENTINEL_TCP_BPF_OBJECT}"
+    COMMAND "${CLANG_EXECUTABLE}"
+        -O2
+        -g
+        -target bpf
+        -D__TARGET_ARCH_x86
+        -I${CMAKE_CURRENT_SOURCE_DIR}/ebpf
+        -I/usr/include/${CMAKE_LIBRARY_ARCHITECTURE}
+        -c ${CMAKE_CURRENT_SOURCE_DIR}/ebpf/tcplat.bpf.c
+        -o "${SENTINEL_TCP_BPF_OBJECT}"
+    DEPENDS
+        ${CMAKE_CURRENT_SOURCE_DIR}/ebpf/tcplat.bpf.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/ebpf/vmlinux_min.h
+    VERBATIM
+)
 add_custom_target(
     sentinel_bpf_objects ALL
-    DEPENDS "${SENTINEL_BPF_OBJECT}" "${SENTINEL_BLOCKIO_BPF_OBJECT}"
+    DEPENDS
+        "${SENTINEL_BPF_OBJECT}"
+        "${SENTINEL_BLOCKIO_BPF_OBJECT}"
+        "${SENTINEL_TCP_BPF_OBJECT}"
 )
 
 add_library(sentinel_procfs
@@ -121,10 +141,22 @@ target_include_directories(sentinel_blockio PUBLIC include)
 target_compile_options(sentinel_blockio PRIVATE -Wall -Wextra -Wpedantic)
 target_link_libraries(sentinel_blockio PUBLIC sentinel_latency PkgConfig::LIBBPF)
 
+add_library(sentinel_tcp
+    src/tcp_probe.cpp
+)
+target_include_directories(sentinel_tcp PUBLIC include)
+target_compile_options(sentinel_tcp PRIVATE -Wall -Wextra -Wpedantic)
+target_link_libraries(sentinel_tcp PUBLIC sentinel_latency PkgConfig::LIBBPF)
+
 add_executable(sentinel-agent src/main.cpp)
 target_link_libraries(
     sentinel-agent
-    PRIVATE sentinel_procfs sentinel_telemetry sentinel_runqlat sentinel_blockio
+    PRIVATE
+        sentinel_procfs
+        sentinel_telemetry
+        sentinel_runqlat
+        sentinel_blockio
+        sentinel_tcp
 )
 add_dependencies(sentinel-agent sentinel_bpf_objects)
 add_custom_command(
@@ -136,6 +168,9 @@ add_custom_command(
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
         "${SENTINEL_BLOCKIO_BPF_OBJECT}"
         $<TARGET_FILE_DIR:sentinel-agent>/blocklat.bpf.o
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${SENTINEL_TCP_BPF_OBJECT}"
+        $<TARGET_FILE_DIR:sentinel-agent>/tcplat.bpf.o
 )
 
 if(SENTINEL_BUILD_TESTS)
@@ -151,4 +186,8 @@ if(SENTINEL_BUILD_TESTS)
     add_executable(blockio_probe_test tests/blockio_probe_test.cpp)
     target_link_libraries(blockio_probe_test PRIVATE sentinel_latency)
     add_test(NAME blockio_probe_test COMMAND blockio_probe_test)
+
+    add_executable(tcp_probe_test tests/tcp_probe_test.cpp)
+    target_link_libraries(tcp_probe_test PRIVATE sentinel_latency)
+    add_test(NAME tcp_probe_test COMMAND tcp_probe_test)
 endif()
