@@ -34,3 +34,30 @@ func TestReconnectWithNewBootResetsSequence(t *testing.T) {
 		t.Fatalf("expected sequence 1, got %d", snapshot.LastSequence)
 	}
 }
+
+func TestNewBootResetsHealthState(t *testing.T) {
+	config := scoring.DefaultConfig()
+	config.RecoveryCooldown = time.Minute
+	memory := NewMemory(scoring.New(config))
+	now := time.Unix(400, 0)
+	memory.now = func() time.Time { return now }
+	memory.Connect(Hello{NodeID: "game-1", BootID: "boot-a"})
+	unhealthy, err := memory.ApplyBatch("game-1", 1, now, map[string]domain.Metric{
+		scoring.CPUUtilization: {Value: 100},
+	}, 0)
+	if err != nil || unhealthy.HealthStatus != domain.HealthUnhealthy {
+		t.Fatalf("expected hard-limit unhealthy state: snapshot=%+v err=%v", unhealthy, err)
+	}
+
+	now = now.Add(time.Second)
+	memory.Connect(Hello{NodeID: "game-1", BootID: "boot-b"})
+	healthy, err := memory.ApplyBatch("game-1", 1, now, map[string]domain.Metric{
+		scoring.CPUUtilization: {Value: 20},
+	}, 0)
+	if err != nil || healthy.HealthStatus != domain.HealthHealthy {
+		t.Fatalf("new boot must reset cooldown and EWMA: snapshot=%+v err=%v", healthy, err)
+	}
+	if !healthy.RecoveryNotBefore.IsZero() {
+		t.Fatalf("new boot retained recovery deadline %s", healthy.RecoveryNotBefore)
+	}
+}

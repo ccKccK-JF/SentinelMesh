@@ -100,12 +100,23 @@ TCP指标也已通过C++ Agent的protobuf批次发送到Go控制面，并可在H
 - 模拟Agent上报后，PromQL查询`sentinelmesh_cpu_utilization_percent`返回带`node_id="observability-e2e"`标签的样本；
 - Grafana`/api/health`返回数据库`ok`，预置Dashboard UID `sentinelmesh-overview`可通过搜索API发现。
 
-## 8. CI门禁
+## 8. 健康状态机
+
+状态机测试使用确定性时间验证：
+
+- `alpha=0.5`时CPU从20%跳到80%，EWMA为50%，评分使用平滑值；
+- 普通恶化的第1个样本保持原状态，第2个连续样本才迁移；
+- CPU达到100%时不等待EWMA或连续样本，立即进入unhealthy；
+- 冷却截止前禁止恢复，截止后连续3个健康样本才恢复；
+- Agent以新Boot ID连接后，旧EWMA和恢复截止时间被清空。
+
+## 9. CI门禁
 
 GitHub Actions对每次提交执行：
 
 - `go test -race ./...`
 - `go vet ./...`
+- Dashboard JSON和Docker Compose配置校验
 - CMake构建三个BPF对象和C++ Agent
 - CTest解析器、调度、块I/O和TCP直方图测试
 - C++ Agent到Go控制面的跨语言E2E

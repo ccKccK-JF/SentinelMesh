@@ -77,6 +77,12 @@ func (e *Exporter) collect() map[string]*family {
 		statusLabels := copyLabels(baseLabels)
 		statusLabels["status"] = string(node.HealthStatus)
 		add("sentinelmesh_node_health_status", "Current node health status as a labeled value.", "gauge", statusLabels, 1)
+		if !node.HealthChangedAt.IsZero() {
+			add("sentinelmesh_node_health_changed_timestamp_seconds", "Unix timestamp of the latest health state transition.", "gauge", baseLabels, float64(node.HealthChangedAt.UnixNano())/1e9)
+		}
+		if !node.RecoveryNotBefore.IsZero() {
+			add("sentinelmesh_node_recovery_not_before_timestamp_seconds", "Earliest Unix timestamp at which an unhealthy node may recover.", "gauge", baseLabels, float64(node.RecoveryNotBefore.UnixNano())/1e9)
+		}
 		add("sentinelmesh_node_kernel_events_total", "Kernel events accepted since the current node boot identity was registered.", "counter", baseLabels, float64(node.KernelEventCount))
 		add("sentinelmesh_node_last_seen_timestamp_seconds", "Unix timestamp of the last node activity.", "gauge", baseLabels, float64(node.LastSeen.UnixNano())/1e9)
 

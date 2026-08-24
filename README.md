@@ -4,7 +4,7 @@
 
 面向游戏服务器与通用 Linux 服务的性能诊断和自适应调度平台。项目使用 **Go 构建控制面**、使用 **C++ 构建节点 Agent**，并通过 **C/eBPF** 观测调度、块 I/O 与 TCP 内核路径。
 
-> 当前状态：M2 已完成，下一阶段进入M3自适应调度。仓库只把已经落地、能够测试的能力标为完成；规划中的能力不会伪装成已实现功能。
+> 当前状态：M2 已完成，M3状态机第一阶段已落地。仓库只把已经落地、能够测试的能力标为完成；规划中的能力不会伪装成已实现功能。
 
 ## 为什么重新开发
 
@@ -33,7 +33,7 @@ procfs / cgroup     eBPF programs
              Routing Policy (M3)
 ```
 
-详细设计见 [docs/architecture.md](docs/architecture.md)，观测栈说明见 [docs/observability.md](docs/observability.md)，实际验证记录见 [docs/verification.md](docs/verification.md)，旧项目审计见 [docs/reference-audit.md](docs/reference-audit.md)。
+详细设计见 [docs/architecture.md](docs/architecture.md)，状态机见 [docs/scheduling.md](docs/scheduling.md)，观测栈说明见 [docs/observability.md](docs/observability.md)，实际验证记录见 [docs/verification.md](docs/verification.md)，旧项目审计见 [docs/reference-audit.md](docs/reference-audit.md)。
 
 ## 当前完成度
 
@@ -51,6 +51,7 @@ procfs / cgroup     eBPF programs
 | eBPF TCP质量探针 | ✅ M2 | RTT直方图、重传与收发RST计数、netem/iperf3故障注入验证 |
 | Ring Buffer事件通道 | ✅ M2 | TCP异常事件、每批1024条边界、内核/用户态丢失计数 |
 | Prometheus/Grafana | ✅ M2 | `/metrics`导出、5秒抓取、自动配置数据源和8面板Dashboard |
+| 健康状态机 | ✅ M3.1 | EWMA、硬门槛、连续样本滞回、恢复冷却和Boot状态重置 |
 | 自适应路由权重 | ⏳ M3 | 尚未实现 |
 
 ## 快速开始

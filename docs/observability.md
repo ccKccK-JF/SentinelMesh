@@ -45,6 +45,8 @@ Agent指标名称统一添加`sentinelmesh_`前缀，并将点号等不兼容字
 | 节点事件累计 | `sentinelmesh_node_kernel_events_total` | Counter |
 | 节点连接状态 | `sentinelmesh_node_connected` | Gauge（0/1） |
 | 节点健康分 | `sentinelmesh_node_health_score` | Gauge（0..100） |
+| 最近健康迁移时间 | `sentinelmesh_node_health_changed_timestamp_seconds` | Gauge |
+| 最早允许恢复时间 | `sentinelmesh_node_recovery_not_before_timestamp_seconds` | Gauge |
 
 名称以`_total`结尾的Agent累计计数按Counter导出，其余采集窗口值按Gauge导出。
 

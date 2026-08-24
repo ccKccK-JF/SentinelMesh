@@ -23,10 +23,12 @@
 
 ## M3：自适应调度
 
-- [ ] EWMA 指标平滑
-- [ ] 硬门槛和节点摘除
-- [ ] unhealthy/degraded/healthy 状态滞回
-- [ ] 恢复冷却与渐进增权
+- [x] EWMA 指标平滑
+- [x] CPU/内存/磁盘硬门槛即时标记unhealthy
+- [ ] unhealthy节点从路由候选中摘除
+- [x] unhealthy/degraded/healthy 状态滞回
+- [x] unhealthy恢复冷却
+- [ ] 恢复后的渐进增权
 - [ ] 带版本号的路由权重下发
 - [ ] 假网关/游戏服分配器验证闭环
 

@@ -44,6 +44,7 @@ func (m *Memory) Connect(hello Hello) domain.NodeSnapshot {
 
 	node, ok := m.nodes[hello.NodeID]
 	if !ok || node.BootID != hello.BootID {
+		m.scorer.Reset(hello.NodeID)
 		node = &domain.NodeSnapshot{
 			NodeID:       hello.NodeID,
 			Metrics:      make(map[string]domain.Metric),
@@ -84,13 +85,16 @@ func (m *Memory) ApplyBatch(nodeID string, sequence uint64, observedAt time.Time
 	for name, metric := range metrics {
 		node.Metrics[name] = copyMetric(metric)
 	}
-	result := m.scorer.Compute(node.Metrics)
+	now := m.now().UTC()
+	result := m.scorer.Evaluate(nodeID, node.Metrics, now)
 	node.LastSequence = sequence
 	node.ObservedAt = observedAt.UTC()
-	node.LastSeen = m.now().UTC()
+	node.LastSeen = now
 	node.HealthScore = result.Score
 	node.HealthStatus = result.Status
 	node.HealthReason = result.Reason
+	node.HealthChangedAt = result.ChangedAt
+	node.RecoveryNotBefore = result.RecoveryNotBefore
 	node.KernelEventCount += uint64(kernelEvents)
 	return clone(*node), nil
 }

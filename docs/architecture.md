@@ -46,14 +46,16 @@ Agent 建立流后必须先发送 `AgentHello`。此后的 `MetricBatch.sequence
 
 ## 4. 健康评分
 
-M1 的基础评分只负责建立可测试接口：
+评分使用以下基础指标：
 
 - `cpu.utilization.percent`
 - `memory.utilization.percent`
 - `system.load.normalized`
 - `disk.io.utilization.percent`
 
-先应用硬门槛，再计算 0 到 100 的加权分。M2/M3 将加入调度延迟、TCP 重传、服务错误率、EWMA 和状态滞回。所有阈值必须通过配置注入，不能散落在业务代码中。
+每个节点独立维护EWMA与健康状态。CPU、内存和磁盘硬门槛检查原始值并立即标记unhealthy；普通评分使用EWMA平滑值。恶化需要连续2个样本，改善需要连续3个样本；unhealthy恢复前还需等待30秒冷却。新Boot ID会清空该节点的EWMA、滞回候选和冷却状态。
+
+详细状态迁移见[自适应调度设计](scheduling.md)。路由候选摘除、渐进增权与权重下发仍属于后续M3工作。
 
 ## 5. 存储策略
 

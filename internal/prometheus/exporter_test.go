@@ -40,6 +40,7 @@ func TestExporterRendersNodeAndAgentMetrics(t *testing.T) {
 		`sentinelmesh_network_receive_bytes_per_second{hostname="game\"east\none",interface="eth0",node_id="game-1"} 128`,
 		`sentinelmesh_node_connected{hostname="game\"east\none",node_id="game-1"} 1`,
 		`sentinelmesh_node_health_status{hostname="game\"east\none",node_id="game-1",status="degraded"} 1`,
+		`sentinelmesh_node_health_changed_timestamp_seconds{hostname="game\"east\none",node_id="game-1"} `,
 		`sentinelmesh_node_kernel_events_total{hostname="game\"east\none",node_id="game-1"} 2`,
 	} {
 		if !strings.Contains(body, expected) {
