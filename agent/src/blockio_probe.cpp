@@ -1,4 +1,4 @@
-#include "sentinel/runqlat_probe.hpp"
+#include "sentinel/blockio_probe.hpp"
 
 #include <algorithm>
 #include <cerrno>
@@ -18,33 +18,26 @@ std::string LibbpfError(int error) {
 
 }  // namespace
 
-struct RunQueueLatencyProbe::Impl {
+struct BlockIoLatencyProbe::Impl {
   bpf_object* object{};
   std::vector<bpf_link*> links;
   int histogram_fd{-1};
   int possible_cpus{};
 
   ~Impl() {
-    for (auto* link : links) {
-      bpf_link__destroy(link);
-    }
+    for (auto* link : links) bpf_link__destroy(link);
     if (object != nullptr) bpf_object__close(object);
   }
 };
 
-std::optional<RunQueueLatencySummary> SummarizeRunQueueLatency(
-    const RunQueueLatencyHistogram& current,
-    const RunQueueLatencyHistogram& previous) {
-  return SummarizeLatencyHistogram(current, previous);
-}
+BlockIoLatencyProbe::BlockIoLatencyProbe() = default;
+BlockIoLatencyProbe::~BlockIoLatencyProbe() = default;
 
-RunQueueLatencyProbe::RunQueueLatencyProbe() = default;
-RunQueueLatencyProbe::~RunQueueLatencyProbe() = default;
-
-bool RunQueueLatencyProbe::Open(
+bool BlockIoLatencyProbe::Open(
     const std::filesystem::path& bpf_object_path) {
   impl_.reset();
-  previous_.fill(0);
+  previous_read_.fill(0);
+  previous_write_.fill(0);
   last_error_.clear();
 
   auto impl = std::make_unique<Impl>();
@@ -55,7 +48,6 @@ bool RunQueueLatencyProbe::Open(
     last_error_ = "open BPF object: " + LibbpfError(static_cast<int>(open_error));
     return false;
   }
-
   const int load_error = bpf_object__load(impl->object);
   if (load_error != 0) {
     last_error_ = "load BPF object: " + LibbpfError(load_error);
@@ -75,9 +67,9 @@ bool RunQueueLatencyProbe::Open(
   }
 
   impl->histogram_fd =
-      bpf_object__find_map_fd_by_name(impl->object, "latency_slots");
+      bpf_object__find_map_fd_by_name(impl->object, "block_latency_slots");
   if (impl->histogram_fd < 0) {
-    last_error_ = "latency_slots map was not found";
+    last_error_ = "block_latency_slots map was not found";
     return false;
   }
   impl->possible_cpus = libbpf_num_possible_cpus();
@@ -90,26 +82,37 @@ bool RunQueueLatencyProbe::Open(
   return true;
 }
 
-std::optional<RunQueueLatencySummary> RunQueueLatencyProbe::Collect() {
+std::optional<BlockIoLatencySummary> BlockIoLatencyProbe::Collect() {
   if (!impl_) {
-    last_error_ = "run queue latency probe is not open";
+    last_error_ = "block I/O latency probe is not open";
     return std::nullopt;
   }
 
-  RunQueueLatencyHistogram current{};
+  LatencyHistogram current_read{};
+  LatencyHistogram current_write{};
   std::vector<std::uint64_t> per_cpu(
       static_cast<std::size_t>(impl_->possible_cpus));
-  for (std::uint32_t slot = 0; slot < current.size(); ++slot) {
+  for (std::uint32_t map_slot = 0;
+       map_slot < kLatencyHistogramSlots * 2; ++map_slot) {
     std::fill(per_cpu.begin(), per_cpu.end(), 0);
-    if (bpf_map_lookup_elem(impl_->histogram_fd, &slot, per_cpu.data()) != 0) {
-      last_error_ = "read latency_slots map: " + std::string(std::strerror(errno));
+    if (bpf_map_lookup_elem(impl_->histogram_fd, &map_slot,
+                            per_cpu.data()) != 0) {
+      last_error_ = "read block_latency_slots map: " +
+                    std::string(std::strerror(errno));
       return std::nullopt;
     }
-    for (const auto value : per_cpu) current[slot] += value;
+    auto& histogram = map_slot < kLatencyHistogramSlots ? current_read
+                                                        : current_write;
+    const std::size_t slot = map_slot % kLatencyHistogramSlots;
+    for (const auto value : per_cpu) histogram[slot] += value;
   }
 
-  const auto summary = SummarizeRunQueueLatency(current, previous_);
-  previous_ = current;
+  BlockIoLatencySummary summary{
+      .read = SummarizeLatencyHistogram(current_read, previous_read_),
+      .write = SummarizeLatencyHistogram(current_write, previous_write_),
+  };
+  previous_read_ = current_read;
+  previous_write_ = current_write;
   return summary;
 }
 

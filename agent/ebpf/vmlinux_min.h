@@ -11,4 +11,8 @@ struct task_struct {
   int pid;
 } __attribute__((preserve_access_index));
 
+struct request {
+  __u32 cmd_flags;
+} __attribute__((preserve_access_index));
+
 #endif  // SENTINEL_VMLINUX_MIN_H_

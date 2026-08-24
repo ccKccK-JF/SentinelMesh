@@ -2,10 +2,14 @@
 
 `runqlat.bpf.c`跟踪`sched_wakeup`、`sched_wakeup_new`与`sched_switch`，统计任务从进入可运行状态到真正获得CPU的等待时间。
 
+`blocklat.bpf.c`跟踪`block_rq_issue`与`block_rq_complete`，以`struct request *`为键关联同一个块请求，并按读写方向统计从下发到完成的延迟。
+
 ## 数据结构
 
 - `enqueue_time`：以PID为键保存任务进入运行队列的时间。
 - `latency_slots`：32槽per-CPU对数直方图，用户态读取时再跨CPU聚合。
+- `block_in_flight`：保存块请求的下发时间和读写方向。
+- `block_latency_slots`：读、写各32槽的per-CPU对数直方图。
 
 内核侧使用per-CPU数组，因此递增当前CPU槽位时不需要原子操作。C++ Loader计算相邻采样窗口的增量，并输出P95、P99和事件数。
 
@@ -21,6 +25,7 @@ CMake自动编译BPF对象并复制到`sentinel-agent`旁边：
 cmake -S agent -B build/agent
 cmake --build build/agent --parallel
 sudo ./build/agent/sentinel-agent --enable-ebpf --stdout --once
+sudo ./scripts/test-blockio.sh
 ```
 
 加载内核程序需要root或等价的最小内核能力。生产部署应收敛权限，不应直接使用完整privileged容器。

@@ -52,6 +52,12 @@ struct Snapshot {
   std::optional<double> scheduler_run_queue_p95_microseconds;
   std::optional<double> scheduler_run_queue_p99_microseconds;
   std::optional<std::uint64_t> scheduler_run_queue_events;
+  std::optional<double> block_io_read_p95_microseconds;
+  std::optional<double> block_io_read_p99_microseconds;
+  std::optional<std::uint64_t> block_io_read_events;
+  std::optional<double> block_io_write_p95_microseconds;
+  std::optional<double> block_io_write_p99_microseconds;
+  std::optional<std::uint64_t> block_io_write_events;
   std::vector<NetRate> network;
 };
 

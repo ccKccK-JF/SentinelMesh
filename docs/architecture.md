@@ -21,6 +21,8 @@ SentinelMesh 不以“采集尽可能多的指标”为目标，而是解决三�
 
 Agent 不负责全局评分和路由决策，避免每个节点持有不一致的集群视图。
 
+块I/O探针使用`block_rq_issue`和`block_rq_complete`携带的同一个`struct request *`作为关联键，在下发时记录时间和读写方向，在完成时计算延迟并写入读/写独立的per-CPU直方图。in-flight Map使用LRU上限，避免异常请求长期未完成时无限增长。
+
 ### Go Control Plane
 
 - 维护 Agent 长连接和节点生命周期。

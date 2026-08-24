@@ -69,11 +69,24 @@ sudo ./build/agent/sentinel-agent --enable-ebpf --stdout --once
 sudo ./scripts/test-ebpf.sh
 ```
 
+`--enable-ebpf`同时打开当前所有探针；排查兼容性时也可以分别使用`--enable-runqlat`或`--enable-blockio`。
+
 输出会增加：
 
 - `scheduler.run_queue.latency.p95.microseconds`
 - `scheduler.run_queue.latency.p99.microseconds`
 - `scheduler.run_queue.events`
+- `block.io.read.latency.p95.microseconds`
+- `block.io.read.latency.p99.microseconds`
+- `block.io.write.latency.p95.microseconds`
+- `block.io.write.latency.p99.microseconds`
+
+块I/O验证脚本使用fio持续制造直接随机读写，确认请求关联、读写分类和窗口分位数：
+
+```bash
+sudo apt install -y fio
+sudo ./scripts/test-blockio.sh
+```
 
 容器验证需要访问宿主机内核能力；仅限开发环境时可使用`--privileged`，正式部署不应长期授予完整特权。
 

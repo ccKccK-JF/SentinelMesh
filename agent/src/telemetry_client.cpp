@@ -83,6 +83,30 @@ bool TelemetryClient::SendSnapshot(std::uint64_t sequence,
     AddMetric(batch, "scheduler.run_queue.events",
               static_cast<double>(*snapshot.scheduler_run_queue_events), "count");
   }
+  if (snapshot.block_io_read_p95_microseconds) {
+    AddMetric(batch, "block.io.read.latency.p95.microseconds",
+              *snapshot.block_io_read_p95_microseconds, "microseconds");
+  }
+  if (snapshot.block_io_read_p99_microseconds) {
+    AddMetric(batch, "block.io.read.latency.p99.microseconds",
+              *snapshot.block_io_read_p99_microseconds, "microseconds");
+  }
+  if (snapshot.block_io_read_events) {
+    AddMetric(batch, "block.io.read.events",
+              static_cast<double>(*snapshot.block_io_read_events), "count");
+  }
+  if (snapshot.block_io_write_p95_microseconds) {
+    AddMetric(batch, "block.io.write.latency.p95.microseconds",
+              *snapshot.block_io_write_p95_microseconds, "microseconds");
+  }
+  if (snapshot.block_io_write_p99_microseconds) {
+    AddMetric(batch, "block.io.write.latency.p99.microseconds",
+              *snapshot.block_io_write_p99_microseconds, "microseconds");
+  }
+  if (snapshot.block_io_write_events) {
+    AddMetric(batch, "block.io.write.events",
+              static_cast<double>(*snapshot.block_io_write_events), "count");
+  }
 
   for (const auto& network : snapshot.network) {
     auto* receive = batch->add_metrics();

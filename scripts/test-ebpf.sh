@@ -9,7 +9,7 @@ if [[ ${EUID} -ne 0 ]]; then
   exit 1
 fi
 
-OUTPUT=$("${AGENT_BINARY}" --enable-ebpf --stdout --once)
+OUTPUT=$("${AGENT_BINARY}" --enable-runqlat --stdout --once)
 grep -q '"scheduler.run_queue.latency.p95.microseconds"' <<<"${OUTPUT}"
 grep -q '"scheduler.run_queue.latency.p99.microseconds"' <<<"${OUTPUT}"
 grep -q '"scheduler.run_queue.events"' <<<"${OUTPUT}"

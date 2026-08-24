@@ -198,6 +198,29 @@ std::string ToJson(const Snapshot& snapshot) {
     output << ",\"scheduler.run_queue.events\":"
            << *snapshot.scheduler_run_queue_events;
   }
+  if (snapshot.block_io_read_p95_microseconds) {
+    output << ",\"block.io.read.latency.p95.microseconds\":"
+           << *snapshot.block_io_read_p95_microseconds;
+  }
+  if (snapshot.block_io_read_p99_microseconds) {
+    output << ",\"block.io.read.latency.p99.microseconds\":"
+           << *snapshot.block_io_read_p99_microseconds;
+  }
+  if (snapshot.block_io_read_events) {
+    output << ",\"block.io.read.events\":" << *snapshot.block_io_read_events;
+  }
+  if (snapshot.block_io_write_p95_microseconds) {
+    output << ",\"block.io.write.latency.p95.microseconds\":"
+           << *snapshot.block_io_write_p95_microseconds;
+  }
+  if (snapshot.block_io_write_p99_microseconds) {
+    output << ",\"block.io.write.latency.p99.microseconds\":"
+           << *snapshot.block_io_write_p99_microseconds;
+  }
+  if (snapshot.block_io_write_events) {
+    output << ",\"block.io.write.events\":"
+           << *snapshot.block_io_write_events;
+  }
   output << "},\"network\":[";
   for (std::size_t i = 0; i < snapshot.network.size(); ++i) {
     if (i != 0) output << ',';

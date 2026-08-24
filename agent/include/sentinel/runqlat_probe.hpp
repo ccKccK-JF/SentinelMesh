@@ -1,23 +1,18 @@
 #pragma once
 
-#include <array>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
 
+#include "sentinel/latency_histogram.hpp"
+
 namespace sentinel {
 
-constexpr std::size_t kRunQueueLatencySlots = 32;
-using RunQueueLatencyHistogram =
-    std::array<std::uint64_t, kRunQueueLatencySlots>;
-
-struct RunQueueLatencySummary {
-  std::uint64_t events{};
-  double p95_microseconds{};
-  double p99_microseconds{};
-};
+constexpr std::size_t kRunQueueLatencySlots = kLatencyHistogramSlots;
+using RunQueueLatencyHistogram = LatencyHistogram;
+using RunQueueLatencySummary = LatencySummary;
 
 std::optional<RunQueueLatencySummary> SummarizeRunQueueLatency(
     const RunQueueLatencyHistogram& current,
