@@ -35,6 +35,8 @@ procfs / cgroup     eBPF programs
 
 详细设计见 [docs/architecture.md](docs/architecture.md)，状态机见 [docs/scheduling.md](docs/scheduling.md)，观测栈说明见 [docs/observability.md](docs/observability.md)，实际验证记录见 [docs/verification.md](docs/verification.md)，旧项目审计见 [docs/reference-audit.md](docs/reference-audit.md)。
 
+Round Robin与自适应路由的确定性对照结果见[路由基准报告](docs/benchmarks/routing-synthetic.md)。
+
 ## 当前完成度
 
 | 能力 | 状态 | 说明 |

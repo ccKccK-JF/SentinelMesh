@@ -37,6 +37,6 @@
 - [ ] stress-ng CPU/内存注入
 - [ ] fio 磁盘延迟注入
 - [ ] iperf3 与 tc netem 网络注入
-- [ ] Round Robin 与自适应策略对照实验
+- [x] Round Robin 与自适应策略确定性对照实验
 - [ ] Agent CPU/内存开销和事件丢失率报告
 - [ ] P95/P99、错误率、摘除和恢复时间报告

@@ -27,6 +27,8 @@ jobs:
           docker compose -f deploy/observability.compose.yml config --quiet
       - name: Routing end-to-end
         run: ./scripts/test-routing.sh
+      - name: Routing benchmark regression
+        run: go run ./cmd/routing-benchmark | diff -u docs/benchmarks/routing-synthetic.md -
 
   cpp-agent:
     runs-on: ubuntu-24.04
