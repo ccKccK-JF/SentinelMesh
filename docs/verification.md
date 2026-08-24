@@ -91,7 +91,16 @@ sudo ./scripts/test-ring-buffer.sh
 
 TCP指标也已通过C++ Agent的protobuf批次发送到Go控制面，并可在HTTP节点快照中查询。一次逐窗口轮询回归捕获到RTT样本44、重传11、接收RST 1和发送RST 4，证明非零指标跨越了完整链路。
 
-## 7. CI门禁
+## 7. Prometheus和Grafana
+
+完整Compose经过以下运行时检查：
+
+- 控制面、Prometheus 3.13.2和Grafana 12.4.0三个容器均正常启动；
+- Prometheus的`control-plane:8080/metrics`目标状态为`up`；
+- 模拟Agent上报后，PromQL查询`sentinelmesh_cpu_utilization_percent`返回带`node_id="observability-e2e"`标签的样本；
+- Grafana`/api/health`返回数据库`ok`，预置Dashboard UID `sentinelmesh-overview`可通过搜索API发现。
+
+## 8. CI门禁
 
 GitHub Actions对每次提交执行：
 

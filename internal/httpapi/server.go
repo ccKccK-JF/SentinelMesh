@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/ccKccK-JF/SentinelMesh/internal/prometheus"
 	"github.com/ccKccK-JF/SentinelMesh/internal/store"
 )
 
@@ -19,6 +20,7 @@ func New(memory *store.Memory) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.health)
+	mux.Handle("GET /metrics", prometheus.New(s.store))
 	mux.HandleFunc("GET /v1/nodes", s.listNodes)
 	mux.HandleFunc("GET /v1/nodes/{nodeID}", s.getNode)
 	return mux

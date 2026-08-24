@@ -112,6 +112,37 @@ sudo ./scripts/test-ring-buffer.sh
 
 容器验证需要访问宿主机内核能力；仅限开发环境时可使用`--privileged`，正式部署不应长期授予完整特权。
 
+## Prometheus和Grafana
+
+从仓库根目录启动完整观测栈：
+
+```bash
+docker compose -f deploy/observability.compose.yml up -d --build
+docker compose -f deploy/observability.compose.yml ps
+```
+
+端口：
+
+- 控制面gRPC：`127.0.0.1:50051`
+- 控制面HTTP和`/metrics`：`127.0.0.1:8080`
+- Prometheus：`127.0.0.1:9090`
+- Grafana：`127.0.0.1:3000`
+
+可用模拟Agent快速产生时序数据：
+
+```bash
+go run ./cmd/sim-agent --address 127.0.0.1:50051 --node-id observability-demo --count 30
+curl http://127.0.0.1:8080/metrics
+```
+
+停止环境但保留Prometheus和Grafana命名卷：
+
+```bash
+docker compose -f deploy/observability.compose.yml down
+```
+
+详细指标映射、Dashboard面板和安全说明见[观测栈文档](observability.md)。
+
 ## 提交约定
 
 - `feat:` 新能力

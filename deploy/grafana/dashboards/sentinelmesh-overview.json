@@ -1,0 +1,127 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"max": 100, "min": 0, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"colorMode": "value", "graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}},
+      "targets": [{"expr": "sentinelmesh_node_health_score{node_id=~\"$node\"}", "legendFormat": "{{node_id}}", "refId": "A"}],
+      "title": "节点健康分",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"mappings": [{"options": {"0": {"color": "red", "text": "断开"}, "1": {"color": "green", "text": "在线"}}, "type": "value"}], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, "overrides": []},
+      "gridPos": {"h": 5, "w": 6, "x": 6, "y": 0},
+      "id": 2,
+      "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}},
+      "targets": [{"expr": "sentinelmesh_node_connected{node_id=~\"$node\"}", "legendFormat": "{{node_id}}", "refId": "A"}],
+      "title": "Agent连接状态",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "id": 3,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "targets": [
+        {"expr": "sentinelmesh_cpu_utilization_percent{node_id=~\"$node\"}", "legendFormat": "CPU {{node_id}}", "refId": "A"},
+        {"expr": "sentinelmesh_memory_utilization_percent{node_id=~\"$node\"}", "legendFormat": "内存 {{node_id}}", "refId": "B"}
+      ],
+      "title": "CPU / 内存利用率",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "µs"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+      "id": 4,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "targets": [{"expr": "sentinelmesh_scheduler_run_queue_latency_p99_microseconds{node_id=~\"$node\"}", "legendFormat": "{{node_id}}", "refId": "A"}],
+      "title": "调度等待延迟 P99",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "µs"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "id": 5,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "targets": [
+        {"expr": "sentinelmesh_block_io_read_latency_p99_microseconds{node_id=~\"$node\"}", "legendFormat": "读 {{node_id}}", "refId": "A"},
+        {"expr": "sentinelmesh_block_io_write_latency_p99_microseconds{node_id=~\"$node\"}", "legendFormat": "写 {{node_id}}", "refId": "B"}
+      ],
+      "title": "块 I/O 延迟 P99",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "µs"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 13},
+      "id": 6,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "targets": [{"expr": "sentinelmesh_tcp_rtt_p99_microseconds{node_id=~\"$node\"}", "legendFormat": "{{node_id}}", "refId": "A"}],
+      "title": "TCP RTT P99",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "id": 7,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "targets": [
+        {"expr": "sentinelmesh_tcp_retransmissions{node_id=~\"$node\"}", "legendFormat": "重传 {{node_id}}", "refId": "A"},
+        {"expr": "sentinelmesh_tcp_receive_resets{node_id=~\"$node\"}", "legendFormat": "接收RST {{node_id}}", "refId": "B"},
+        {"expr": "sentinelmesh_tcp_send_resets{node_id=~\"$node\"}", "legendFormat": "发送RST {{node_id}}", "refId": "C"}
+      ],
+      "title": "TCP窗口异常",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 21},
+      "id": 8,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "targets": [
+        {"expr": "sentinelmesh_kernel_ring_buffer_dropped{node_id=~\"$node\"}", "legendFormat": "Ring丢失 {{node_id}}", "refId": "A"},
+        {"expr": "rate(sentinelmesh_node_kernel_events_total{node_id=~\"$node\"}[1m])", "legendFormat": "事件/秒 {{node_id}}", "refId": "B"}
+      ],
+      "title": "内核事件可靠性",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 41,
+  "tags": ["sentinelmesh", "ebpf"],
+  "templating": {
+    "list": [
+      {
+        "current": {"text": "All", "value": "$__all"},
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+        "definition": "label_values(sentinelmesh_node_connected, node_id)",
+        "includeAll": true,
+        "label": "节点",
+        "multi": true,
+        "name": "node",
+        "query": {"query": "label_values(sentinelmesh_node_connected, node_id)", "refId": "PrometheusVariableQueryEditor-VariableQuery"},
+        "refresh": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {"from": "now-15m", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "SentinelMesh 节点性能总览",
+  "uid": "sentinelmesh-overview",
+  "version": 1
+}
