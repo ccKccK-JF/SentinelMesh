@@ -108,6 +108,21 @@ func (e *Exporter) collect() map[string]*family {
 			add(name, "", typ, labels, metric.Value)
 		}
 	}
+	routes := e.store.Routing()
+	add("sentinelmesh_routing_config_version", "Monotonic routing assignment version.", "gauge", nil, float64(routes.Version))
+	for _, assignment := range routes.Nodes {
+		labels := map[string]string{
+			"node_id": assignment.NodeID,
+			"status":  string(assignment.HealthStatus),
+			"reason":  assignment.Reason,
+		}
+		eligible := 0.0
+		if assignment.Eligible {
+			eligible = 1
+		}
+		add("sentinelmesh_node_routing_eligible", "Whether a node may receive new routed work.", "gauge", labels, eligible)
+		add("sentinelmesh_node_routing_weight", "Normalized node routing weight out of 10000.", "gauge", labels, float64(assignment.Weight))
+	}
 	return families
 }
 

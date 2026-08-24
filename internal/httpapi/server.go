@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/ccKccK-JF/SentinelMesh/internal/prometheus"
@@ -23,7 +24,19 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /metrics", prometheus.New(s.store))
 	mux.HandleFunc("GET /v1/nodes", s.listNodes)
 	mux.HandleFunc("GET /v1/nodes/{nodeID}", s.getNode)
+	mux.HandleFunc("GET /v1/routing", s.routing)
 	return mux
+}
+
+func (s *Server) routing(w http.ResponseWriter, r *http.Request) {
+	snapshot := s.store.Routing()
+	etag := `"` + strconv.FormatUint(snapshot.Version, 10) + `"`
+	w.Header().Set("ETag", etag)
+	if r.Header.Get("If-None-Match") == etag {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+	writeJSON(w, http.StatusOK, snapshot)
 }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {

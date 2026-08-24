@@ -25,6 +25,8 @@ jobs:
         run: |
           jq empty deploy/grafana/dashboards/sentinelmesh-overview.json
           docker compose -f deploy/observability.compose.yml config --quiet
+      - name: Routing end-to-end
+        run: ./scripts/test-routing.sh
 
   cpp-agent:
     runs-on: ubuntu-24.04

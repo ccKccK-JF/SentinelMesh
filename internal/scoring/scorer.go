@@ -56,6 +56,7 @@ type Result struct {
 	Reason            string
 	ChangedAt         time.Time
 	RecoveryNotBefore time.Time
+	RecoveryStartedAt time.Time
 }
 
 type Scorer struct {
@@ -75,6 +76,7 @@ type nodeState struct {
 	candidateCount    int
 	changedAt         time.Time
 	recoveryNotBefore time.Time
+	recoveryStartedAt time.Time
 }
 
 func New(config Config) Scorer {
@@ -119,6 +121,7 @@ func (s Scorer) Evaluate(nodeID string, metrics map[string]domain.Metric, now ti
 		state.candidate = domain.HealthUnknown
 		state.candidateCount = 0
 		state.recoveryNotBefore = now.Add(s.config.RecoveryCooldown)
+		state.recoveryStartedAt = time.Time{}
 		return s.result(raw, state)
 	}
 
@@ -158,14 +161,19 @@ func (s Scorer) Evaluate(nodeID string, metrics map[string]domain.Metric, now ti
 		state.candidateCount++
 	}
 	if state.candidateCount >= required {
+		previousStatus := state.status
 		state.status = raw.Status
 		state.changedAt = now
 		state.candidate = domain.HealthUnknown
 		state.candidateCount = 0
 		if state.status == domain.HealthUnhealthy {
 			state.recoveryNotBefore = now.Add(s.config.RecoveryCooldown)
+			state.recoveryStartedAt = time.Time{}
 		} else {
 			state.recoveryNotBefore = time.Time{}
+			if previousStatus == domain.HealthUnhealthy {
+				state.recoveryStartedAt = now
+			}
 		}
 		return s.result(raw, state)
 	}
@@ -204,6 +212,7 @@ func (s Scorer) result(raw Result, state *nodeState) Result {
 	raw.Status = state.status
 	raw.ChangedAt = state.changedAt
 	raw.RecoveryNotBefore = state.recoveryNotBefore
+	raw.RecoveryStartedAt = state.recoveryStartedAt
 	return raw
 }
 

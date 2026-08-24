@@ -20,6 +20,10 @@ func main() {
 	nodeID := flag.String("node-id", "game-1", "simulated node ID")
 	count := flag.Int("count", 3, "number of metric batches")
 	interval := flag.Duration("interval", time.Second, "interval between batches")
+	cpu := flag.Float64("cpu", -1, "fixed CPU utilization; negative uses random values")
+	memory := flag.Float64("memory", -1, "fixed memory utilization; negative uses random values")
+	load := flag.Float64("load", -1, "fixed normalized load; negative uses random values")
+	disk := flag.Float64("disk", -1, "fixed disk utilization; negative uses random values")
 	flag.Parse()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(*count+5)*(*interval)+5*time.Second)
@@ -51,10 +55,10 @@ func main() {
 
 	for sequence := 1; sequence <= *count; sequence++ {
 		metrics := []*sentinelv1.MetricSample{
-			{Name: scoring.CPUUtilization, Value: 25 + rand.Float64()*20, Unit: "percent"},
-			{Name: scoring.MemoryUtilization, Value: 40 + rand.Float64()*10, Unit: "percent"},
-			{Name: scoring.LoadNormalized, Value: 0.3 + rand.Float64()*0.2, Unit: "ratio"},
-			{Name: scoring.DiskUtilization, Value: 15 + rand.Float64()*10, Unit: "percent"},
+			{Name: scoring.CPUUtilization, Value: sample(*cpu, 25, 20), Unit: "percent"},
+			{Name: scoring.MemoryUtilization, Value: sample(*memory, 40, 10), Unit: "percent"},
+			{Name: scoring.LoadNormalized, Value: sample(*load, 0.3, 0.2), Unit: "ratio"},
+			{Name: scoring.DiskUtilization, Value: sample(*disk, 15, 10), Unit: "percent"},
 		}
 		if err := stream.Send(&sentinelv1.TelemetryEnvelope{Payload: &sentinelv1.TelemetryEnvelope_Batch{
 			Batch: &sentinelv1.MetricBatch{
@@ -71,6 +75,13 @@ func main() {
 		}
 	}
 	_ = stream.CloseSend()
+}
+
+func sample(fixed, base, spread float64) float64 {
+	if fixed >= 0 {
+		return fixed
+	}
+	return base + rand.Float64()*spread
 }
 
 func receiveAck(stream grpc.BidiStreamingClient[sentinelv1.TelemetryEnvelope, sentinelv1.CollectorAck]) {

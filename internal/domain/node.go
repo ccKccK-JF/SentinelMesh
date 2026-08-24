@@ -32,6 +32,7 @@ type NodeSnapshot struct {
 	HealthReason      string            `json:"health_reason,omitempty"`
 	HealthChangedAt   time.Time         `json:"health_changed_at,omitzero"`
 	RecoveryNotBefore time.Time         `json:"recovery_not_before,omitzero"`
+	RecoveryStartedAt time.Time         `json:"recovery_started_at,omitzero"`
 	Metrics           map[string]Metric `json:"metrics"`
 	KernelEventCount  uint64            `json:"kernel_event_count"`
 }

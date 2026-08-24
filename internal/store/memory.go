@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ccKccK-JF/SentinelMesh/internal/domain"
+	"github.com/ccKccK-JF/SentinelMesh/internal/routing"
 	"github.com/ccKccK-JF/SentinelMesh/internal/scoring"
 )
 
@@ -27,6 +28,8 @@ type Memory struct {
 	mu     sync.RWMutex
 	nodes  map[string]*domain.NodeSnapshot
 	scorer scoring.Scorer
+	router routing.Policy
+	routes routing.Snapshot
 	now    func() time.Time
 }
 
@@ -34,6 +37,8 @@ func NewMemory(scorer scoring.Scorer) *Memory {
 	return &Memory{
 		nodes:  make(map[string]*domain.NodeSnapshot),
 		scorer: scorer,
+		router: routing.New(routing.DefaultConfig()),
+		routes: routing.Snapshot{Nodes: []routing.Assignment{}},
 		now:    time.Now,
 	}
 }
@@ -57,7 +62,9 @@ func (m *Memory) Connect(hello Hello) domain.NodeSnapshot {
 	node.AgentVersion = hello.AgentVersion
 	node.BootID = hello.BootID
 	node.Connected = true
-	node.LastSeen = m.now().UTC()
+	now := m.now().UTC()
+	node.LastSeen = now
+	m.refreshRoutingLocked(now)
 	return clone(*node)
 }
 
@@ -66,7 +73,9 @@ func (m *Memory) Disconnect(nodeID string) {
 	defer m.mu.Unlock()
 	if node, ok := m.nodes[nodeID]; ok {
 		node.Connected = false
-		node.LastSeen = m.now().UTC()
+		now := m.now().UTC()
+		node.LastSeen = now
+		m.refreshRoutingLocked(now)
 	}
 }
 
@@ -95,7 +104,9 @@ func (m *Memory) ApplyBatch(nodeID string, sequence uint64, observedAt time.Time
 	node.HealthReason = result.Reason
 	node.HealthChangedAt = result.ChangedAt
 	node.RecoveryNotBefore = result.RecoveryNotBefore
+	node.RecoveryStartedAt = result.RecoveryStartedAt
 	node.KernelEventCount += uint64(kernelEvents)
+	m.refreshRoutingLocked(now)
 	return clone(*node), nil
 }
 
@@ -129,6 +140,26 @@ func (m *Memory) List() []domain.NodeSnapshot {
 	}
 	sort.Slice(nodes, func(i, j int) bool { return nodes[i].NodeID < nodes[j].NodeID })
 	return nodes
+}
+
+func (m *Memory) Routing() routing.Snapshot {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return routing.Clone(m.routes)
+}
+
+func (m *Memory) refreshRoutingLocked(now time.Time) {
+	nodes := make([]domain.NodeSnapshot, 0, len(m.nodes))
+	for _, node := range m.nodes {
+		nodes = append(nodes, *node)
+	}
+	assignments := m.router.Compute(nodes, now)
+	if routing.EqualAssignments(m.routes.Nodes, assignments) {
+		return
+	}
+	m.routes.Version++
+	m.routes.GeneratedAt = now
+	m.routes.Nodes = assignments
 }
 
 func clone(node domain.NodeSnapshot) domain.NodeSnapshot {

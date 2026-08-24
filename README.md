@@ -4,7 +4,7 @@
 
 面向游戏服务器与通用 Linux 服务的性能诊断和自适应调度平台。项目使用 **Go 构建控制面**、使用 **C++ 构建节点 Agent**，并通过 **C/eBPF** 观测调度、块 I/O 与 TCP 内核路径。
 
-> 当前状态：M2 已完成，M3状态机第一阶段已落地。仓库只把已经落地、能够测试的能力标为完成；规划中的能力不会伪装成已实现功能。
+> 当前状态：M3自适应调度闭环已完成，下一阶段进入M4对照实验与性能报告。仓库只把已经落地、能够测试的能力标为完成；规划中的能力不会伪装成已实现功能。
 
 ## 为什么重新开发
 
@@ -52,7 +52,7 @@ procfs / cgroup     eBPF programs
 | Ring Buffer事件通道 | ✅ M2 | TCP异常事件、每批1024条边界、内核/用户态丢失计数 |
 | Prometheus/Grafana | ✅ M2 | `/metrics`导出、5秒抓取、自动配置数据源和8面板Dashboard |
 | 健康状态机 | ✅ M3.1 | EWMA、硬门槛、连续样本滞回、恢复冷却和Boot状态重置 |
-| 自适应路由权重 | ⏳ M3 | 尚未实现 |
+| 自适应路由权重 | ✅ M3.2 | 版本化快照、异常摘除、恢复渐进增权、平滑加权轮询假网关 |
 
 ## 快速开始
 
@@ -125,6 +125,9 @@ sudo ./scripts/test-ring-buffer.sh
 
 ```bash
 ./scripts/test-e2e.sh
+
+# 两个可控Agent、路由快照和假网关分流验证
+./scripts/test-routing.sh
 ```
 
 完整环境和故障排查见 [docs/development.md](docs/development.md)。

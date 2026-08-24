@@ -143,6 +143,24 @@ docker compose -f deploy/observability.compose.yml down
 
 详细指标映射、Dashboard面板和安全说明见[观测栈文档](observability.md)。
 
+## 自适应路由验证
+
+路由端到端脚本会启动控制面、一个固定健康Agent和一个CPU硬门槛Agent，再让假网关模拟10,000次请求分配：
+
+```bash
+./scripts/test-routing.sh
+```
+
+手工运行假网关：
+
+```bash
+go run ./cmd/fake-gateway \
+  --routing-url http://127.0.0.1:8080/v1/routing \
+  --requests 10000
+```
+
+路由API为`GET /v1/routing`。只有快照内容变化时版本才递增；响应使用版本号作为`ETag`，携带`If-None-Match`轮询时未变化返回HTTP 304。网关应缓存最近一次成功快照，并拒绝用较旧版本覆盖新版本。
+
 ## 提交约定
 
 - `feat:` 新能力

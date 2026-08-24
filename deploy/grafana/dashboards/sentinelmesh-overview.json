@@ -97,6 +97,16 @@
       ],
       "title": "内核事件可靠性",
       "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"max": 10000, "min": 0, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+      "id": 9,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "targets": [{"expr": "sentinelmesh_node_routing_weight{node_id=~\"$node\"}", "legendFormat": "{{node_id}} {{reason}}", "refId": "A"}],
+      "title": "自适应路由权重",
+      "type": "timeseries"
     }
   ],
   "refresh": "5s",

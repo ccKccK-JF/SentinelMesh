@@ -42,6 +42,9 @@ func TestExporterRendersNodeAndAgentMetrics(t *testing.T) {
 		`sentinelmesh_node_health_status{hostname="game\"east\none",node_id="game-1",status="degraded"} 1`,
 		`sentinelmesh_node_health_changed_timestamp_seconds{hostname="game\"east\none",node_id="game-1"} `,
 		`sentinelmesh_node_kernel_events_total{hostname="game\"east\none",node_id="game-1"} 2`,
+		`sentinelmesh_node_routing_eligible{node_id="game-1",reason="degraded",status="degraded"} 1`,
+		`sentinelmesh_node_routing_weight{node_id="game-1",reason="degraded",status="degraded"} 10000`,
+		`sentinelmesh_routing_config_version 2`,
 	} {
 		if !strings.Contains(body, expected) {
 			t.Fatalf("missing %q in:\n%s", expected, body)

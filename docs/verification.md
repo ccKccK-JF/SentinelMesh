@@ -110,7 +110,22 @@ TCP指标也已通过C++ Agent的protobuf批次发送到Go控制面，并可在H
 - 冷却截止前禁止恢复，截止后连续3个健康样本才恢复；
 - Agent以新Boot ID连接后，旧EWMA和恢复截止时间被清空。
 
-## 9. CI门禁
+## 9. 自适应路由
+
+`scripts/test-routing.sh`启动两个固定指标Agent：`game-good`持续上报健康值，`game-hot`持续上报100% CPU。一次真实回归结果：
+
+| 验证项 | 结果 |
+|---|---:|
+| 路由快照版本 | 4 |
+| `game-good`权重 | 10,000 |
+| `game-hot`权重 | 0 |
+| `game-hot`原因 | `health_unhealthy` |
+| 假网关请求数 | 10,000 |
+| 分配到`game-good` | 10,000 |
+
+单元测试还验证了80分healthy节点与80分degraded节点经过0.5惩罚后得到6,667/3,333权重；恢复节点在0秒、30秒和60秒分别得到渐进权重，并确保整数权重总和始终为10,000。
+
+## 10. CI门禁
 
 GitHub Actions对每次提交执行：
 
@@ -120,5 +135,6 @@ GitHub Actions对每次提交执行：
 - CMake构建三个BPF对象和C++ Agent
 - CTest解析器、调度、块I/O和TCP直方图测试
 - C++ Agent到Go控制面的跨语言E2E
+- 健康/过载双Agent到假网关的自适应路由E2E
 
 特权eBPF加载不放在公共Runner中执行，使用本地显式脚本验证，避免把公共CI环境的内核权限误当成代码失败。

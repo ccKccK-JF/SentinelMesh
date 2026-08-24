@@ -47,12 +47,15 @@ Agent指标名称统一添加`sentinelmesh_`前缀，并将点号等不兼容字
 | 节点健康分 | `sentinelmesh_node_health_score` | Gauge（0..100） |
 | 最近健康迁移时间 | `sentinelmesh_node_health_changed_timestamp_seconds` | Gauge |
 | 最早允许恢复时间 | `sentinelmesh_node_recovery_not_before_timestamp_seconds` | Gauge |
+| 路由配置版本 | `sentinelmesh_routing_config_version` | Gauge |
+| 节点是否可路由 | `sentinelmesh_node_routing_eligible` | Gauge（0/1） |
+| 节点路由权重 | `sentinelmesh_node_routing_weight` | Gauge（总和10,000） |
 
 名称以`_total`结尾的Agent累计计数按Counter导出，其余采集窗口值按Gauge导出。
 
 ## Dashboard
 
-预置Dashboard包含8个面板：健康分、Agent连接状态、CPU/内存、调度等待P99、块I/O读写P99、TCP RTT P99、TCP重传/RST和内核事件可靠性。`node`变量支持单节点、多节点或全部节点对比。
+预置Dashboard包含9个面板：健康分、Agent连接状态、CPU/内存、调度等待P99、块I/O读写P99、TCP RTT P99、TCP重传/RST、内核事件可靠性和自适应路由权重。`node`变量支持单节点、多节点或全部节点对比。
 
 Dashboard和数据源均通过文件自动配置，无需在Grafana界面手工导入：
 

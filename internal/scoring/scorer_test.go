@@ -90,7 +90,8 @@ func TestEvaluateHardLimitCooldownAndRecovery(t *testing.T) {
 		}
 	}
 	recovered := scorer.Evaluate("game-1", healthy, expectedRecovery.Add(2*time.Second))
-	if recovered.Status != domain.HealthHealthy || !recovered.RecoveryNotBefore.IsZero() {
+	if recovered.Status != domain.HealthHealthy || !recovered.RecoveryNotBefore.IsZero() ||
+		!recovered.RecoveryStartedAt.Equal(expectedRecovery.Add(2*time.Second)) {
 		t.Fatalf("third stable sample must recover: %+v", recovered)
 	}
 }
