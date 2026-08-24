@@ -131,6 +131,23 @@ bool TelemetryClient::SendSnapshot(std::uint64_t sequence,
     AddMetric(batch, "tcp.send_resets",
               static_cast<double>(*snapshot.tcp_send_resets), "count");
   }
+  if (snapshot.kernel_ring_buffer_dropped) {
+    AddMetric(batch, "kernel.ring_buffer.dropped",
+              static_cast<double>(*snapshot.kernel_ring_buffer_dropped),
+              "count");
+  }
+
+  for (const auto& event : snapshot.kernel_events) {
+    auto* kernel_event = batch->add_kernel_events();
+    kernel_event->set_type(event.type);
+    kernel_event->set_observed_at_unix_nano(event.observed_at_unix_nano);
+    kernel_event->set_process_id(event.process_id);
+    kernel_event->set_process_name(event.process_name);
+    kernel_event->set_latency_ns(event.latency_ns);
+    for (const auto& [key, value] : event.attributes) {
+      (*kernel_event->mutable_attributes())[key] = value;
+    }
+  }
 
   for (const auto& network : snapshot.network) {
     auto* receive = batch->add_metrics();

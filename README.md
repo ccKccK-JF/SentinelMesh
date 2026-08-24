@@ -49,6 +49,7 @@ procfs / cgroup     eBPF programs
 | eBPF 调度延迟探针 | ✅ M2 | CO-RE内核程序、libbpf Loader、per-CPU直方图、P95/P99上报 |
 | eBPF 块I/O延迟探针 | ✅ M2 | request指针关联、读写分离直方图、fio故障注入验证 |
 | eBPF TCP质量探针 | ✅ M2 | RTT直方图、重传与收发RST计数、netem/iperf3故障注入验证 |
+| Ring Buffer事件通道 | ✅ M2 | TCP异常事件、每批1024条边界、内核/用户态丢失计数 |
 | Prometheus/Grafana | ⏳ M2 | 尚未实现 |
 | 自适应路由权重 | ⏳ M3 | 尚未实现 |
 
@@ -114,6 +115,9 @@ sudo ./scripts/test-blockio.sh
 # 使用netem、iperf3和本地RST负载验证TCP指标
 sudo apt install -y iproute2 iperf3 python3
 sudo ./scripts/test-tcp.sh
+
+# 用高并发RST验证Ring Buffer容量边界和丢失统计
+sudo ./scripts/test-ring-buffer.sh
 ```
 
 跨语言端到端验证：

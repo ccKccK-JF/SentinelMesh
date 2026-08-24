@@ -97,6 +97,7 @@ add_custom_command(
         -o "${SENTINEL_TCP_BPF_OBJECT}"
     DEPENDS
         ${CMAKE_CURRENT_SOURCE_DIR}/ebpf/tcplat.bpf.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/ebpf/tcp_event.h
         ${CMAKE_CURRENT_SOURCE_DIR}/ebpf/vmlinux_min.h
     VERBATIM
 )
@@ -144,7 +145,7 @@ target_link_libraries(sentinel_blockio PUBLIC sentinel_latency PkgConfig::LIBBPF
 add_library(sentinel_tcp
     src/tcp_probe.cpp
 )
-target_include_directories(sentinel_tcp PUBLIC include)
+target_include_directories(sentinel_tcp PUBLIC include PRIVATE ebpf)
 target_compile_options(sentinel_tcp PRIVATE -Wall -Wextra -Wpedantic)
 target_link_libraries(sentinel_tcp PUBLIC sentinel_latency PkgConfig::LIBBPF)
 

@@ -14,6 +14,8 @@
 - `block_latency_slots`：读、写各32槽的per-CPU对数直方图。
 - `tcp_rtt_slots`：32槽per-CPU RTT对数直方图。
 - `tcp_counters`：per-CPU重传、接收RST和发送RST计数器。
+- `tcp_events`：256KiB Ring Buffer，传递重传与RST异常事件。
+- `tcp_ringbuf_dropped`：per-CPU reserve失败计数；C++还会合并超过1024条批次边界的用户态截断数。
 
 内核侧使用per-CPU数组，因此递增当前CPU槽位时不需要原子操作。C++ Loader计算相邻采样窗口的增量，并输出P95、P99和事件数。
 
@@ -31,6 +33,7 @@ cmake --build build/agent --parallel
 sudo ./build/agent/sentinel-agent --enable-ebpf --stdout --once
 sudo ./scripts/test-blockio.sh
 sudo ./scripts/test-tcp.sh
+sudo ./scripts/test-ring-buffer.sh
 ```
 
 加载内核程序需要root或等价的最小内核能力。生产部署应收敛权限，不应直接使用完整privileged容器。

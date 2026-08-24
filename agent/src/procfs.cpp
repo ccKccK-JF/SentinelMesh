@@ -24,6 +24,44 @@ std::string Trim(std::string value) {
   return value.substr(first, last - first + 1);
 }
 
+std::string JsonEscape(std::string_view value) {
+  std::ostringstream escaped;
+  for (const char character : value) {
+    switch (character) {
+      case '"':
+        escaped << "\\\"";
+        break;
+      case '\\':
+        escaped << "\\\\";
+        break;
+      case '\b':
+        escaped << "\\b";
+        break;
+      case '\f':
+        escaped << "\\f";
+        break;
+      case '\n':
+        escaped << "\\n";
+        break;
+      case '\r':
+        escaped << "\\r";
+        break;
+      case '\t':
+        escaped << "\\t";
+        break;
+      default:
+        if (static_cast<unsigned char>(character) < 0x20) {
+          escaped << "\\u" << std::hex << std::setw(4) << std::setfill('0')
+                  << static_cast<int>(static_cast<unsigned char>(character))
+                  << std::dec;
+        } else {
+          escaped << character;
+        }
+    }
+  }
+  return escaped.str();
+}
+
 }  // namespace
 
 CpuTimes ParseCpuStat(std::string_view content) {
@@ -241,15 +279,32 @@ std::string ToJson(const Snapshot& snapshot) {
   if (snapshot.tcp_send_resets) {
     output << ",\"tcp.send_resets\":" << *snapshot.tcp_send_resets;
   }
+  if (snapshot.kernel_ring_buffer_dropped) {
+    output << ",\"kernel.ring_buffer.dropped\":"
+           << *snapshot.kernel_ring_buffer_dropped;
+  }
   output << "},\"network\":[";
   for (std::size_t i = 0; i < snapshot.network.size(); ++i) {
     if (i != 0) output << ',';
     const auto& net = snapshot.network[i];
-    output << "{\"interface\":\"" << net.interface_name << "\",";
+    output << "{\"interface\":\"" << JsonEscape(net.interface_name)
+           << "\",";
     output << "\"receive_bytes_per_second\":" << net.receive_bytes_per_second << ',';
     output << "\"transmit_bytes_per_second\":" << net.transmit_bytes_per_second << ',';
     output << "\"receive_drops\":" << net.receive_drops << ',';
     output << "\"transmit_drops\":" << net.transmit_drops << '}';
+  }
+  output << "],\"kernel_events\":[";
+  for (std::size_t i = 0; i < snapshot.kernel_events.size(); ++i) {
+    if (i != 0) output << ',';
+    const auto& event = snapshot.kernel_events[i];
+    output << "{\"type\":\"" << JsonEscape(event.type) << "\",";
+    output << "\"observed_at_unix_nano\":"
+           << event.observed_at_unix_nano << ',';
+    output << "\"process_id\":" << event.process_id << ',';
+    output << "\"process_name\":\"" << JsonEscape(event.process_name)
+           << "\",";
+    output << "\"latency_ns\":" << event.latency_ns << '}';
   }
   output << "]}";
   return output.str();

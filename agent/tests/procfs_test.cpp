@@ -35,6 +35,13 @@ int main() {
   tcp_snapshot.tcp_retransmissions = 26;
   tcp_snapshot.tcp_receive_resets = 1;
   tcp_snapshot.tcp_send_resets = 2;
+  tcp_snapshot.kernel_ring_buffer_dropped = 3;
+  tcp_snapshot.kernel_events.push_back(sentinel::KernelEvent{
+      .type = "tcp_send_reset",
+      .observed_at_unix_nano = 123456,
+      .process_id = 42,
+      .process_name = "test\"process",
+  });
   const auto json = sentinel::ToJson(tcp_snapshot);
   assert(json.find("\"tcp.rtt.p95.microseconds\":32768.00") !=
          std::string::npos);
@@ -42,6 +49,11 @@ int main() {
   assert(json.find("\"tcp.retransmissions\":26") != std::string::npos);
   assert(json.find("\"tcp.receive_resets\":1") != std::string::npos);
   assert(json.find("\"tcp.send_resets\":2") != std::string::npos);
+  assert(json.find("\"kernel.ring_buffer.dropped\":3") !=
+         std::string::npos);
+  assert(json.find("\"type\":\"tcp_send_reset\"") != std::string::npos);
+  assert(json.find("\"process_name\":\"test\\\"process\"") !=
+         std::string::npos);
 
   std::cout << "procfs parser tests passed\n";
   return 0;

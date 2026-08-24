@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -45,6 +46,15 @@ struct NetRate {
   std::uint64_t transmit_drops{};
 };
 
+struct KernelEvent {
+  std::string type;
+  std::int64_t observed_at_unix_nano{};
+  std::uint32_t process_id{};
+  std::string process_name;
+  std::uint64_t latency_ns{};
+  std::map<std::string, std::string> attributes;
+};
+
 struct Snapshot {
   double cpu_utilization_percent{};
   double memory_utilization_percent{};
@@ -64,6 +74,8 @@ struct Snapshot {
   std::optional<std::uint64_t> tcp_retransmissions;
   std::optional<std::uint64_t> tcp_receive_resets;
   std::optional<std::uint64_t> tcp_send_resets;
+  std::optional<std::uint64_t> kernel_ring_buffer_dropped;
+  std::vector<KernelEvent> kernel_events;
   std::vector<NetRate> network;
 };
 

@@ -8,6 +8,7 @@
 #include <string>
 
 #include "sentinel/latency_histogram.hpp"
+#include "sentinel/metrics.hpp"
 
 namespace sentinel {
 
@@ -18,6 +19,8 @@ struct TcpMetricsWindow {
   std::uint64_t retransmissions{};
   std::uint64_t receive_resets{};
   std::uint64_t send_resets{};
+  std::uint64_t ring_buffer_dropped{};
+  std::vector<KernelEvent> events;
 };
 
 class TcpMetricsProbe {
@@ -40,6 +43,7 @@ class TcpMetricsProbe {
   std::unique_ptr<Impl> impl_;
   LatencyHistogram previous_rtt_{};
   std::array<std::uint64_t, kTcpCounterCount> previous_counters_{};
+  std::uint64_t previous_ring_buffer_dropped_{};
   std::string last_error_;
 };
 

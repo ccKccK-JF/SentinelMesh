@@ -122,11 +122,14 @@ import json
 import sys
 
 maximum = {}
+event_types = set()
 with open(sys.argv[1], encoding="utf-8") as output:
     for line in output:
-        metrics = json.loads(line)["metrics"]
+        snapshot = json.loads(line)
+        metrics = snapshot["metrics"]
         for name, value in metrics.items():
             maximum[name] = max(maximum.get(name, 0), value)
+        event_types.update(event["type"] for event in snapshot["kernel_events"])
 
 required_positive = (
     "tcp.rtt.p95.microseconds",
@@ -139,5 +142,11 @@ required_positive = (
 missing = [name for name in required_positive if maximum.get(name, 0) <= 0]
 if missing:
     raise SystemExit("TCP metrics did not become positive: " + ", ".join(missing))
+if "kernel.ring_buffer.dropped" not in maximum:
+    raise SystemExit("kernel.ring_buffer.dropped metric was not emitted")
+required_events = {"tcp_retransmit", "tcp_receive_reset", "tcp_send_reset"}
+if not required_events.issubset(event_types):
+    raise SystemExit("missing TCP kernel events: " +
+                     ", ".join(sorted(required_events - event_types)))
 print("TCP eBPF RTT/retransmission/reset test passed", maximum)
 PY

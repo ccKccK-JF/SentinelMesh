@@ -67,7 +67,19 @@ sudo ./scripts/test-tcp.sh
 
 高丢包会同时抬高RTT估计与重传次数；样例值用于证明tracepoint、per-CPU聚合和窗口增量链路，不代表生产网络基线。
 
-## 5. 跨语言遥测
+## 5. Ring Buffer容量与丢失统计
+
+运行：
+
+```bash
+sudo ./scripts/test-ring-buffer.sh
+```
+
+脚本在一个5秒采集窗口内用64个并发客户端持续制造RST。2026-08-25的一次回归中，C++ Agent按协议边界保留1024条事件，并将内核reserve失败和用户态截断合计为25,399条丢失事件。
+
+同一负载通过gRPC上报后，Go HTTP节点快照显示`kernel_event_count=1024`、`kernel.ring_buffer.dropped=18,342`、`last_sequence=2`。两次压力值不同属于并发负载的正常波动；测试断言关注容量边界和计数非零，不依赖固定数值。
+
+## 6. 跨语言遥测
 
 ```bash
 ./scripts/test-e2e.sh
@@ -79,7 +91,7 @@ sudo ./scripts/test-tcp.sh
 
 TCP指标也已通过C++ Agent的protobuf批次发送到Go控制面，并可在HTTP节点快照中查询。一次逐窗口轮询回归捕获到RTT样本44、重传11、接收RST 1和发送RST 4，证明非零指标跨越了完整链路。
 
-## 6. CI门禁
+## 7. CI门禁
 
 GitHub Actions对每次提交执行：
 

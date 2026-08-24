@@ -18,7 +18,7 @@
 - [x] 调度等待延迟直方图与P95/P99上报
 - [x] 块 I/O 请求关联、读写延迟直方图与fio验证
 - [x] TCP RTT、重传和异常关闭
-- [ ] Ring Buffer 丢失事件计数
+- [x] Ring Buffer 异常事件通道和丢失事件计数
 - [ ] Prometheus 指标和 Grafana Dashboard
 
 ## M3：自适应调度

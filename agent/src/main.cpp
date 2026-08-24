@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <utility>
 
 #include <unistd.h>
 
@@ -125,7 +126,7 @@ sentinel::Snapshot CollectSnapshot(
     }
   }
   if (tcp_probe != nullptr) {
-    const auto tcp = tcp_probe->Collect();
+    auto tcp = tcp_probe->Collect();
     if (tcp) {
       if (tcp->rtt) {
         snapshot.tcp_rtt_p95_microseconds = tcp->rtt->p95_microseconds;
@@ -135,6 +136,8 @@ sentinel::Snapshot CollectSnapshot(
       snapshot.tcp_retransmissions = tcp->retransmissions;
       snapshot.tcp_receive_resets = tcp->receive_resets;
       snapshot.tcp_send_resets = tcp->send_resets;
+      snapshot.kernel_ring_buffer_dropped = tcp->ring_buffer_dropped;
+      snapshot.kernel_events = std::move(tcp->events);
     }
   }
   if (blockio_probe != nullptr) {
@@ -181,7 +184,7 @@ int RunGrpc(const Options& options, sentinel::ProcfsCollector* collector,
       .node_id = options.node_id,
       .hostname = Hostname(),
       .ip_address = "",
-      .agent_version = "sentinel-agent/0.4.0",
+      .agent_version = "sentinel-agent/0.5.0",
       .boot_id = ReadFirstLine(options.proc_root / "sys/kernel/random/boot_id"),
   };
   sentinel::TelemetryClient client(options.manager_address);

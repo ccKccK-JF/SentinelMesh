@@ -88,6 +88,7 @@ sudo ./scripts/test-ebpf.sh
 - `tcp.retransmissions`
 - `tcp.receive_resets`
 - `tcp.send_resets`
+- `kernel.ring_buffer.dropped`
 
 块I/O验证脚本使用fio持续制造直接随机读写，确认请求关联、读写分类和窗口分位数：
 
@@ -101,6 +102,12 @@ TCP验证脚本在回环接口注入15ms延迟和30%丢包，通过iperf3持续�
 ```bash
 sudo apt install -y iproute2 iperf3 python3
 sudo ./scripts/test-tcp.sh
+```
+
+异常TCP事件还会通过Ring Buffer进入`MetricBatch.kernel_events`，类型包括`tcp_retransmit`、`tcp_receive_reset`和`tcp_send_reset`。单个批次最多保留1024条，超过用户态边界或内核Ring Buffer容量的数量统一记录到`kernel.ring_buffer.dropped`：
+
+```bash
+sudo ./scripts/test-ring-buffer.sh
 ```
 
 容器验证需要访问宿主机内核能力；仅限开发环境时可使用`--privileged`，正式部署不应长期授予完整特权。

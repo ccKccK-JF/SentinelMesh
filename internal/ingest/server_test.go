@@ -59,6 +59,10 @@ func TestTelemetryStreamAcceptsBatch(t *testing.T) {
 				{Name: scoring.CPUUtilization, Value: 30, Unit: "percent"},
 				{Name: scoring.MemoryUtilization, Value: 40, Unit: "percent"},
 			},
+			KernelEvents: []*sentinelv1.KernelEvent{
+				{Type: "tcp_retransmit", ProcessId: 100},
+				{Type: "tcp_send_reset", ProcessId: 101},
+			},
 		},
 	}}); err != nil {
 		t.Fatalf("send batch: %v", err)
@@ -71,7 +75,7 @@ func TestTelemetryStreamAcceptsBatch(t *testing.T) {
 		t.Fatalf("unexpected ack: %+v", ack)
 	}
 	snapshot, ok := memory.Get("game-1")
-	if !ok || snapshot.LastSequence != 1 {
+	if !ok || snapshot.LastSequence != 1 || snapshot.KernelEventCount != 2 {
 		t.Fatalf("batch was not stored: %+v", snapshot)
 	}
 
