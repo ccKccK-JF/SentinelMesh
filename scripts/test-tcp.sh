@@ -123,6 +123,7 @@ import sys
 
 maximum = {}
 event_types = set()
+event_count = 0
 with open(sys.argv[1], encoding="utf-8") as output:
     for line in output:
         snapshot = json.loads(line)
@@ -130,6 +131,7 @@ with open(sys.argv[1], encoding="utf-8") as output:
         for name, value in metrics.items():
             maximum[name] = max(maximum.get(name, 0), value)
         event_types.update(event["type"] for event in snapshot["kernel_events"])
+        event_count += len(snapshot["kernel_events"])
 
 required_positive = (
     "tcp.rtt.p95.microseconds",
@@ -148,5 +150,13 @@ required_events = {"tcp_retransmit", "tcp_receive_reset", "tcp_send_reset"}
 if not required_events.issubset(event_types):
     raise SystemExit("missing TCP kernel events: " +
                      ", ".join(sorted(required_events - event_types)))
-print("TCP eBPF RTT/retransmission/reset test passed", maximum)
+dropped = maximum["kernel.ring_buffer.dropped"]
+total_events = event_count + dropped
+print("TCP eBPF RTT/retransmission/reset test passed", {
+    **maximum,
+    "kernel_events": event_count,
+    "ring_buffer_loss_rate_percent": (
+        round(dropped / total_events * 100, 2) if total_events else 0
+    ),
+})
 PY

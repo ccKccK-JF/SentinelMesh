@@ -61,4 +61,28 @@ grep -q '"block.io.write.latency.p99.microseconds"' "${OUTPUT_FILE}"
 grep -q '"block.io.read.events"' "${OUTPUT_FILE}"
 grep -q '"block.io.write.events"' "${OUTPUT_FILE}"
 
-echo "block I/O eBPF read/write latency test passed"
+python3 - "${OUTPUT_FILE}" <<'PY'
+import json
+import sys
+
+metric_names = (
+    "block.io.read.latency.p95.microseconds",
+    "block.io.read.latency.p99.microseconds",
+    "block.io.write.latency.p95.microseconds",
+    "block.io.write.latency.p99.microseconds",
+    "block.io.read.events",
+    "block.io.write.events",
+)
+maximum = {name: 0 for name in metric_names}
+with open(sys.argv[1], encoding="utf-8") as output:
+    for line in output:
+        metrics = json.loads(line)["metrics"]
+        for name in metric_names:
+            maximum[name] = max(maximum[name], metrics.get(name, 0))
+
+missing = [name for name, value in maximum.items() if value <= 0]
+if missing:
+    raise SystemExit("block I/O metrics did not become positive: " +
+                     ", ".join(missing))
+print("block I/O eBPF read/write latency test passed", maximum)
+PY

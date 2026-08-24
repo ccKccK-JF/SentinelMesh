@@ -159,7 +159,46 @@ go run ./cmd/fake-gateway \
   --requests 10000
 ```
 
-路由API为`GET /v1/routing`。只有快照内容变化时版本才递增；响应使用版本号作为`ETag`，携带`If-None-Match`轮询时未变化返回HTTP 304。网关应缓存最近一次成功快照，并拒绝用较旧版本覆盖新版本。
+路由API为`GET /v1/routing`。只有快照内容变化时版本才递增；响应使用版本号作为`ETag`，携带`If-None-Match`轮询时未变化返回HTTP 304。网关应缓存最近一次成功快照，并拒绝用更小版本号的响应覆盖当前配置。
+
+确定性策略对照会把Markdown报告直接写到标准输出。CI将输出与仓库内golden文件逐行比较：
+
+```bash
+go run ./cmd/routing-benchmark
+go run ./cmd/routing-benchmark | diff -u docs/benchmarks/routing-synthetic.md -
+```
+
+## 资源压力与Agent开销
+
+安装实验依赖：
+
+```bash
+sudo apt install -y stress-ng fio iperf3 iproute2 python3
+```
+
+验证procfs采集器能够观察CPU和内存压力：
+
+```bash
+AGENT_BINARY=build/agent/sentinel-agent ./scripts/test-resource-pressure.sh
+```
+
+测量10秒窗口内的Agent单核CPU与峰值RSS：
+
+```bash
+AGENT_BINARY=build/agent/sentinel-agent \
+  DURATION_SECONDS=10 ./scripts/measure-agent-overhead.sh
+
+AGENT_BINARY=build/agent/sentinel-agent \
+  DURATION_SECONDS=10 \
+  AGENT_ARGS="--enable-ebpf --stdout --interval 1" \
+  sudo ./scripts/measure-agent-overhead.sh
+```
+
+CPU通过`/proc/<pid>/stat`的tick差值计算，表示一个逻辑核的占用比例；峰值RSS读取`VmHWM`。短窗口结果受tick分辨率影响，完整口径见[Linux运行时实验报告](benchmarks/linux-runtime-2026-08-25.md)。
+
+## 面试与代码导读
+
+架构、功能开发、eBPF/gRPC/调度八股、高频追问和简历表述集中在[面试讲解手册](interview-guide.md)。代码导读建议从Protobuf契约开始，再依次查看eBPF程序、C++ Loader、Go Ingest/Store、状态机和路由策略。
 
 ## 提交约定
 

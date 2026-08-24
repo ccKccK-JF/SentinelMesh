@@ -1,140 +1,127 @@
-# 验证记录
+# 验证与验收记录
 
-## 1. 验证层次
+## 1. 验证策略
 
-项目将验证拆成四层，避免只用“编译成功”证明内核观测正确：
+项目使用六层验证，避免用“编译成功”代替功能正确：
 
-1. **算法单测**：直方图增量、窗口事件数、P95/P99分桶。
-2. **构建验证**：Clang生成BPF ELF对象，CMake构建C++ Loader和Agent。
-3. **特权加载验证**：libbpf根据目标内核BTF完成CO-RE重定位，并attach到实际tracepoint。
-4. **链路验证**：C++ Agent读取per-CPU Map、生成指标、经gRPC发送到Go控制面，再由HTTP查询节点快照。
+1. 算法单测：解析、窗口增量、P95/P99、评分和路由；
+2. 并发与静态检查：Go race detector 与 vet；
+3. 构建测试：Clang 编译 BPF ELF，CMake 构建 C++ Agent；
+4. 跨语言 E2E：真实 C++ Agent 经 gRPC 上报到 Go 控制面；
+5. 特权内核回归：根据目标内核 BTF 完成 CO-RE 重定位并挂载 tracepoint；
+6. 故障注入与对照：stress-ng、fio、netem/iperf3、Ring Buffer 过载和路由 benchmark。
 
-## 2. 调度延迟
-
-运行：
-
-```bash
-sudo ./scripts/test-ebpf.sh
-```
-
-验证项：
-
-- `sched_wakeup`、`sched_wakeup_new`和`sched_switch`均能attach；
-- 采样窗口能产生调度事件；
-- 输出包含调度等待延迟P95、P99和事件数。
-
-## 3. 块I/O延迟
-
-运行：
+## 2. Go 控制面
 
 ```bash
-sudo ./scripts/test-blockio.sh
+go test -race ./...
+go vet ./...
 ```
 
-脚本使用64MiB临时文件执行4KiB、队列深度16、直接I/O的随机混合读写。验证结束后删除临时文件。
+覆盖范围：
 
-2026-08-24在Docker Desktop Linux内核与Ubuntu 24.04特权容器中的一次样例窗口：
+- 健康评分、EWMA、硬门槛、恶化/恢复连续样本；
+- 30 秒冷却、恢复开始时间和新 Boot ID 重置；
+- 重复 sequence 拒绝与同 Boot ID 重连；
+- 路由权重归一、不可用节点排除、恢复 ramp；
+- 平滑加权轮询分配；
+- HTTP 路由版本、ETag 与 304；
+- Prometheus 指标名称、标签和节点状态导出；
+- Round Robin 与自适应策略结果边界。
 
-| 指标 | 样例值 |
-|---|---:|
-| 读请求数 | 19,991 |
-| 读延迟P95 | 1,024 μs |
-| 读延迟P99 | 1,024 μs |
-| 写请求数 | 20,020 |
-| 写延迟P95 | 512 μs |
-| 写延迟P99 | 1,024 μs |
-
-这些数值只证明请求关联、读写分类、直方图聚合和分位数链路正确。虚拟化和宿主机负载会显著影响绝对延迟，因此不能把该样例直接写成性能优化结论。
-
-## 4. TCP网络质量
-
-运行：
+## 3. C++ Agent
 
 ```bash
-sudo ./scripts/test-tcp.sh
+cmake -S agent -B build/agent -DSENTINEL_BUILD_TESTS=ON
+cmake --build build/agent --parallel
+ctest --test-dir build/agent --output-on-failure
 ```
 
-脚本在回环接口使用`tc netem`注入15ms延迟和30%丢包，使用4路iperf3长连接触发数据段重传，并通过`SO_LINGER=0`制造连接复位。2026-08-25的一次样例窗口峰值如下：
+CTest 包含 4 组测试：procfs 解析、调度直方图、块 I/O 直方图和 TCP 直方图/计数器。2026-08-25 回归为 4/4 通过。
 
-| 指标 | 样例值 |
-|---|---:|
-| RTT样本数 | 84 |
-| RTT P95 | 524,288 μs |
-| RTT P99 | 524,288 μs |
-| TCP重传 | 26 |
-| 接收RST | 1 |
-| 发送RST | 2 |
-
-高丢包会同时抬高RTT估计与重传次数；样例值用于证明tracepoint、per-CPU聚合和窗口增量链路，不代表生产网络基线。
-
-## 5. Ring Buffer容量与丢失统计
-
-运行：
-
-```bash
-sudo ./scripts/test-ring-buffer.sh
-```
-
-脚本在一个5秒采集窗口内用64个并发客户端持续制造RST。2026-08-25的一次回归中，C++ Agent按协议边界保留1024条事件，并将内核reserve失败和用户态截断合计为25,399条丢失事件。
-
-同一负载通过gRPC上报后，Go HTTP节点快照显示`kernel_event_count=1024`、`kernel.ring_buffer.dropped=18,342`、`last_sequence=2`。两次压力值不同属于并发负载的正常波动；测试断言关注容量边界和计数非零，不依赖固定数值。
-
-## 6. 跨语言遥测
+## 4. 跨语言遥测
 
 ```bash
 ./scripts/test-e2e.sh
 ```
 
-脚本连续启动两个C++ Agent进程。第二个进程使用同一Boot ID重新连接，Hello ACK返回此前接受的序列1，随后从序列2继续。测试最终从Go HTTP接口确认`last_sequence=2`。
+脚本启动独立 Go 控制面，运行两个 C++ Agent 进程。第二个进程使用相同 Boot ID 重新连接，Hello ACK 返回此前接受的 sequence 1，随后从 sequence 2 继续；最终 HTTP 节点快照确认 `last_sequence=2`。
 
-块I/O特权链路还完成了以下人工回归：fio运行期间启动带eBPF的C++ Agent，连续上报4个批次；Go节点快照同时包含读写延迟、调度延迟、CPU、内存和网络指标。
+这条测试覆盖 Protobuf C++/Go 兼容、gRPC 双向流、Hello、ACK、重连序列和 HTTP 查询，不依赖模拟 Agent。
 
-TCP指标也已通过C++ Agent的protobuf批次发送到Go控制面，并可在HTTP节点快照中查询。一次逐窗口轮询回归捕获到RTT样本44、重传11、接收RST 1和发送RST 4，证明非零指标跨越了完整链路。
+## 5. 调度、块 I/O 与 TCP
 
-## 7. Prometheus和Grafana
+```bash
+sudo ./scripts/test-ebpf.sh
+sudo ./scripts/test-blockio.sh
+sudo ./scripts/test-tcp.sh
+```
 
-完整Compose经过以下运行时检查：
+- 调度脚本确认三个 sched tracepoint 均可挂载，并输出运行队列事件、P95 与 P99；
+- 块 I/O 脚本用 fio 产生 4 KiB 随机混合读写，确认 request 关联、读写分类与窗口分位数；
+- TCP 脚本用 netem 注入 15 ms 延迟和 30% 丢包，iperf3 产生持续流量，`SO_LINGER=0` 产生 RST，确认 RTT、重传、收发 RST 与三类内核事件。
 
-- 控制面、Prometheus 3.13.2和Grafana 12.4.0三个容器均正常启动；
-- Prometheus的`control-plane:8080/metrics`目标状态为`up`；
-- 模拟Agent上报后，PromQL查询`sentinelmesh_cpu_utilization_percent`返回带`node_id="observability-e2e"`标签的样本；
-- Grafana`/api/health`返回数据库`ok`，预置Dashboard UID `sentinelmesh-overview`可通过搜索API发现。
+2026-08-25 实测环境和数值见 [Linux 运行时实验报告](benchmarks/linux-runtime-2026-08-25.md)。
 
-## 8. 健康状态机
+## 6. Ring Buffer 边界
 
-状态机测试使用确定性时间验证：
+```bash
+sudo ./scripts/test-ring-buffer.sh
+```
 
-- `alpha=0.5`时CPU从20%跳到80%，EWMA为50%，评分使用平滑值；
-- 普通恶化的第1个样本保持原状态，第2个连续样本才迁移；
-- CPU达到100%时不等待EWMA或连续样本，立即进入unhealthy；
-- 冷却截止前禁止恢复，截止后连续3个健康样本才恢复；
-- Agent以新Boot ID连接后，旧EWMA和恢复截止时间被清空。
+64 个并发客户端在 5 秒内持续制造 RST。回归确认单批严格限制为 1,024 条事件，内核 reserve 失败和用户态截断会合并到 dropped 指标。
 
-## 9. 自适应路由
+2026-08-25 过载窗口保留 1,024 条、丢弃 27,642 条，丢失率 96.43%；同日普通 TCP 故障窗口消费 65 条事件、丢失 0 条。过载结果证明计数和容量边界有效，不代表常态丢失率。
 
-`scripts/test-routing.sh`启动两个固定指标Agent：`game-good`持续上报健康值，`game-hot`持续上报100% CPU。一次真实回归结果：
+## 7. 资源压力与 Agent 开销
 
-| 验证项 | 结果 |
-|---|---:|
-| 路由快照版本 | 4 |
-| `game-good`权重 | 10,000 |
-| `game-hot`权重 | 0 |
-| `game-hot`原因 | `health_unhealthy` |
-| 假网关请求数 | 10,000 |
-| 分配到`game-good` | 10,000 |
+```bash
+./scripts/test-resource-pressure.sh
+./scripts/measure-agent-overhead.sh
+AGENT_ARGS="--enable-ebpf --stdout --interval 1" \
+  sudo ./scripts/measure-agent-overhead.sh
+```
 
-单元测试还验证了80分healthy节点与80分degraded节点经过0.5惩罚后得到6,667/3,333权重；恢复节点在0秒、30秒和60秒分别得到渐进权重，并确保整数权重总和始终为10,000。
+stress-ng 回归中 CPU 从 0.50% 升到 56.54%。10 秒空载测量中，procfs 与全 eBPF 模式的单核 CPU 均约 0.10%；峰值 RSS 分别为 11.25 MiB 和 23.63 MiB。CPU tick 分辨率为 0.10%，因此不能从该短窗口声称低于 0.1%。
 
-## 10. CI门禁
+## 8. 自适应路由
 
-GitHub Actions对每次提交执行：
+```bash
+./scripts/test-routing.sh
+go run ./cmd/routing-benchmark
+```
+
+路由 E2E 启动 `game-good` 与持续 100% CPU 的 `game-hot`。控制面产生版本 4 快照，权重分别为 10,000 和 0；假网关执行 10,000 次选择，全部进入健康节点。
+
+确定性 12,000 请求对照中：
+
+| 策略 | 错误数 | 错误率 | P95 | P99 |
+|---|---:|---:|---:|---:|
+| Round Robin | 625 | 5.2083% | 211 ms | 219 ms |
+| Adaptive | 24 | 0.2000% | 15 ms | 16 ms |
+
+CI 把 benchmark 输出与 [golden 报告](benchmarks/routing-synthetic.md) 做逐行 diff，算法结果变化必须显式更新报告。
+
+## 9. Prometheus 与 Grafana
+
+运行时检查包含：
+
+- Control Plane、Prometheus 和 Grafana 容器健康；
+- Prometheus target `control-plane:8080/metrics` 为 up；
+- 模拟 Agent 上报后，PromQL 返回带 `node_id` 的 CPU 样本；
+- Grafana 数据源与 UID `sentinelmesh-overview` Dashboard 自动发现；
+- Dashboard JSON 与 Compose 在 CI 中通过语法校验。
+
+## 10. CI 门禁
+
+GitHub Actions 每次 push 和 pull request 执行：
 
 - `go test -race ./...`
 - `go vet ./...`
-- Dashboard JSON和Docker Compose配置校验
-- CMake构建三个BPF对象和C++ Agent
-- CTest解析器、调度、块I/O和TCP直方图测试
-- C++ Agent到Go控制面的跨语言E2E
-- 健康/过载双Agent到假网关的自适应路由E2E
+- Dashboard JSON 与 Docker Compose 配置校验
+- 路由 E2E 与 benchmark golden diff
+- CMake 构建三个 BPF 对象和 C++ Agent
+- CTest 4 组测试
+- C++ Agent 到 Go 控制面的跨语言 E2E
 
-特权eBPF加载不放在公共Runner中执行，使用本地显式脚本验证，避免把公共CI环境的内核权限误当成代码失败。
+公共 Runner 不具备稳定的特权 eBPF 环境，因此真实加载与故障注入由 Linux 特权脚本完成。公共 CI 仍会编译 BPF ELF 和测试用户态聚合算法。

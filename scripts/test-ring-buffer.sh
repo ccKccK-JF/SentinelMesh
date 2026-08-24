@@ -116,6 +116,8 @@ if maximum_dropped <= 0:
     raise SystemExit("Ring Buffer pressure did not report dropped events")
 if maximum_events != 1024:
     raise SystemExit(f"expected bounded 1024-event batch, got {maximum_events}")
+loss_rate = maximum_dropped / (maximum_events + maximum_dropped) * 100
 print("Ring Buffer overflow accounting test passed",
-      {"events": maximum_events, "dropped": maximum_dropped})
+      {"events": maximum_events, "dropped": maximum_dropped,
+       "loss_rate_percent": round(loss_rate, 2)})
 PY
