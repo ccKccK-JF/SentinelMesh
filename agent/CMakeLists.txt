@@ -9,6 +9,9 @@ option(SENTINEL_BUILD_TESTS "Build agent unit tests" ON)
 
 find_package(Protobuf REQUIRED)
 find_package(gRPC CONFIG REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBBPF REQUIRED IMPORTED_TARGET libbpf)
+find_program(CLANG_EXECUTABLE NAMES clang REQUIRED)
 
 get_filename_component(
     SENTINEL_PROTO_ROOT
@@ -46,6 +49,25 @@ add_library(sentinel_proto
 target_include_directories(sentinel_proto PUBLIC "${SENTINEL_GENERATED_DIR}")
 target_link_libraries(sentinel_proto PUBLIC protobuf::libprotobuf gRPC::grpc++)
 
+set(SENTINEL_BPF_OBJECT "${CMAKE_CURRENT_BINARY_DIR}/runqlat.bpf.o")
+add_custom_command(
+    OUTPUT "${SENTINEL_BPF_OBJECT}"
+    COMMAND "${CLANG_EXECUTABLE}"
+        -O2
+        -g
+        -target bpf
+        -D__TARGET_ARCH_x86
+        -I${CMAKE_CURRENT_SOURCE_DIR}/ebpf
+        -I/usr/include/${CMAKE_LIBRARY_ARCHITECTURE}
+        -c ${CMAKE_CURRENT_SOURCE_DIR}/ebpf/runqlat.bpf.c
+        -o "${SENTINEL_BPF_OBJECT}"
+    DEPENDS
+        ${CMAKE_CURRENT_SOURCE_DIR}/ebpf/runqlat.bpf.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/ebpf/vmlinux_min.h
+    VERBATIM
+)
+add_custom_target(sentinel_bpf_object ALL DEPENDS "${SENTINEL_BPF_OBJECT}")
+
 add_library(sentinel_procfs
     src/procfs.cpp
 )
@@ -59,12 +81,34 @@ target_include_directories(sentinel_telemetry PUBLIC include)
 target_compile_options(sentinel_telemetry PRIVATE -Wall -Wextra -Wpedantic)
 target_link_libraries(sentinel_telemetry PUBLIC sentinel_proto sentinel_procfs)
 
+add_library(sentinel_runqlat
+    src/runqlat_probe.cpp
+)
+target_include_directories(sentinel_runqlat PUBLIC include)
+target_compile_options(sentinel_runqlat PRIVATE -Wall -Wextra -Wpedantic)
+target_link_libraries(sentinel_runqlat PUBLIC PkgConfig::LIBBPF)
+
 add_executable(sentinel-agent src/main.cpp)
-target_link_libraries(sentinel-agent PRIVATE sentinel_procfs sentinel_telemetry)
+target_link_libraries(
+    sentinel-agent
+    PRIVATE sentinel_procfs sentinel_telemetry sentinel_runqlat
+)
+add_dependencies(sentinel-agent sentinel_bpf_object)
+add_custom_command(
+    TARGET sentinel-agent
+    POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${SENTINEL_BPF_OBJECT}"
+        $<TARGET_FILE_DIR:sentinel-agent>/runqlat.bpf.o
+)
 
 if(SENTINEL_BUILD_TESTS)
     enable_testing()
     add_executable(procfs_test tests/procfs_test.cpp)
     target_link_libraries(procfs_test PRIVATE sentinel_procfs)
     add_test(NAME procfs_test COMMAND procfs_test)
+
+    add_executable(runqlat_probe_test tests/runqlat_probe_test.cpp)
+    target_link_libraries(runqlat_probe_test PRIVATE sentinel_runqlat)
+    add_test(NAME runqlat_probe_test COMMAND runqlat_probe_test)
 endif()

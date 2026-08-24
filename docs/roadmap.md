@@ -14,8 +14,8 @@
 
 ## M2：内核性能诊断
 
-- [ ] C++ libbpf CO-RE Loader
-- [ ] 调度等待延迟直方图
+- [x] C++ libbpf CO-RE Loader
+- [x] 调度等待延迟直方图与P95/P99上报
 - [ ] 块 I/O 延迟直方图
 - [ ] TCP RTT、重传和异常关闭
 - [ ] Ring Buffer 丢失事件计数

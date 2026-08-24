@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 // M2 kernel-side prototype: scheduler run-queue latency histogram.
-#include "vmlinux.h"
+#include "vmlinux_min.h"
+#include <linux/bpf.h>
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
@@ -29,6 +30,12 @@ static __always_inline void remember_enqueue(__u32 pid) {
 
 SEC("tp_btf/sched_wakeup")
 int BPF_PROG(handle_sched_wakeup, struct task_struct *task) {
+  remember_enqueue(BPF_CORE_READ(task, pid));
+  return 0;
+}
+
+SEC("tp_btf/sched_wakeup_new")
+int BPF_PROG(handle_sched_wakeup_new, struct task_struct *task) {
   remember_enqueue(BPF_CORE_READ(task, pid));
   return 0;
 }

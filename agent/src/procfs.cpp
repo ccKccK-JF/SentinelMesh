@@ -186,6 +186,18 @@ std::string ToJson(const Snapshot& snapshot) {
   output << "\"memory.utilization.percent\":"
          << snapshot.memory_utilization_percent << ',';
   output << "\"system.load.normalized\":" << snapshot.load_normalized;
+  if (snapshot.scheduler_run_queue_p95_microseconds) {
+    output << ",\"scheduler.run_queue.latency.p95.microseconds\":"
+           << *snapshot.scheduler_run_queue_p95_microseconds;
+  }
+  if (snapshot.scheduler_run_queue_p99_microseconds) {
+    output << ",\"scheduler.run_queue.latency.p99.microseconds\":"
+           << *snapshot.scheduler_run_queue_p99_microseconds;
+  }
+  if (snapshot.scheduler_run_queue_events) {
+    output << ",\"scheduler.run_queue.events\":"
+           << *snapshot.scheduler_run_queue_events;
+  }
   output << "},\"network\":[";
   for (std::size_t i = 0; i < snapshot.network.size(); ++i) {
     if (i != 0) output << ',';

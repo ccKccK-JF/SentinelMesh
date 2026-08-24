@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -48,6 +49,9 @@ struct Snapshot {
   double cpu_utilization_percent{};
   double memory_utilization_percent{};
   double load_normalized{};
+  std::optional<double> scheduler_run_queue_p95_microseconds;
+  std::optional<double> scheduler_run_queue_p99_microseconds;
+  std::optional<std::uint64_t> scheduler_run_queue_events;
   std::vector<NetRate> network;
 };
 

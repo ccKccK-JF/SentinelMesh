@@ -46,7 +46,7 @@ procfs / cgroup     eBPF programs
 | Go 模拟 Agent | ✅ | 用于 Windows/Linux 的端到端开发验证 |
 | C++ procfs Agent | ✅ M1 | CPU、内存、Load、网络指标采集与 JSON 输出 |
 | C++ gRPC Agent | ✅ M1.5 | 双向流、ACK续传语义、指数退避重连、跨语言E2E |
-| eBPF 调度延迟探针 | 🚧 | 内核程序骨架已加入，用户态 Loader 待 M2 接入 |
+| eBPF 调度延迟探针 | ✅ M2 | CO-RE内核程序、libbpf Loader、per-CPU直方图、P95/P99上报 |
 | Prometheus/Grafana | ⏳ M2 | 尚未实现 |
 | 自适应路由权重 | ⏳ M3 | 尚未实现 |
 
@@ -82,10 +82,10 @@ curl http://127.0.0.1:8080/v1/nodes
 go test ./...
 ```
 
-C++ Agent 需要 Linux、CMake 3.20+、Protobuf 和 gRPC C++：
+C++ Agent 需要 Linux、CMake 3.20+、Clang、libbpf、Protobuf 和 gRPC C++：
 
 ```bash
-sudo apt install -y cmake g++ libgrpc++-dev protobuf-compiler-grpc
+sudo apt install -y cmake g++ clang libbpf-dev libgrpc++-dev protobuf-compiler-grpc
 cmake -S agent -B build/agent -DSENTINEL_BUILD_TESTS=ON
 cmake --build build/agent -j
 ctest --test-dir build/agent --output-on-failure
@@ -98,6 +98,12 @@ ctest --test-dir build/agent --output-on-failure
 
 # 只在终端打印指标，不连接控制面
 ./build/agent/sentinel-agent --stdout --once
+
+# 需要root或CAP_BPF等相应能力；启用调度等待延迟观测
+sudo ./build/agent/sentinel-agent --enable-ebpf --stdout --once
+
+# 自动验证加载、事件采集和三项调度指标
+sudo ./scripts/test-ebpf.sh
 ```
 
 跨语言端到端验证：

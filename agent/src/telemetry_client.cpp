@@ -71,6 +71,18 @@ bool TelemetryClient::SendSnapshot(std::uint64_t sequence,
   AddMetric(batch, "memory.utilization.percent",
             snapshot.memory_utilization_percent, "percent");
   AddMetric(batch, "system.load.normalized", snapshot.load_normalized, "ratio");
+  if (snapshot.scheduler_run_queue_p95_microseconds) {
+    AddMetric(batch, "scheduler.run_queue.latency.p95.microseconds",
+              *snapshot.scheduler_run_queue_p95_microseconds, "microseconds");
+  }
+  if (snapshot.scheduler_run_queue_p99_microseconds) {
+    AddMetric(batch, "scheduler.run_queue.latency.p99.microseconds",
+              *snapshot.scheduler_run_queue_p99_microseconds, "microseconds");
+  }
+  if (snapshot.scheduler_run_queue_events) {
+    AddMetric(batch, "scheduler.run_queue.events",
+              static_cast<double>(*snapshot.scheduler_run_queue_events), "count");
+  }
 
   for (const auto& network : snapshot.network) {
     auto* receive = batch->add_metrics();

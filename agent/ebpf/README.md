@@ -1,14 +1,26 @@
 # eBPF probes
 
-`runqlat.bpf.c` 是 M2 的内核侧原型，用以统计任务从被唤醒到真正被调度运行的等待时间直方图。
+`runqlat.bpf.c`跟踪`sched_wakeup`、`sched_wakeup_new`与`sched_switch`，统计任务从进入可运行状态到真正获得CPU的等待时间。
 
-构建前需要从当前构建环境生成 `vmlinux.h`：
+## 数据结构
+
+- `enqueue_time`：以PID为键保存任务进入运行队列的时间。
+- `latency_slots`：32槽per-CPU对数直方图，用户态读取时再跨CPU聚合。
+
+内核侧使用per-CPU数组，因此递增当前CPU槽位时不需要原子操作。C++ Loader计算相邻采样窗口的增量，并输出P95、P99和事件数。
+
+## CO-RE策略
+
+`vmlinux_min.h`只声明探针实际访问的`task_struct.pid`。Clang保留CO-RE重定位信息，libbpf在加载时根据目标内核BTF修正字段偏移。这样无需提交机器生成的整份`vmlinux.h`，也无需在构建时运行bpftool生成Skeleton。
+
+## 构建和运行
+
+CMake自动编译BPF对象并复制到`sentinel-agent`旁边：
 
 ```bash
-bpftool btf dump file /sys/kernel/btf/vmlinux format c > agent/ebpf/vmlinux.h
-clang -O2 -g -target bpf -D__TARGET_ARCH_x86 \
-  -Iagent/ebpf -c agent/ebpf/runqlat.bpf.c -o build/runqlat.bpf.o
-bpftool gen skeleton build/runqlat.bpf.o > build/runqlat.skel.h
+cmake -S agent -B build/agent
+cmake --build build/agent --parallel
+sudo ./build/agent/sentinel-agent --enable-ebpf --stdout --once
 ```
 
-当前文件尚未连接 C++ 用户态 Loader，因此 README 主表将其标记为“开发中”。
+加载内核程序需要root或等价的最小内核能力。生产部署应收敛权限，不应直接使用完整privileged容器。
