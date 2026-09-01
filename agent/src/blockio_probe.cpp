@@ -1,3 +1,18 @@
+// ============================================================================
+// agent/src/blockio_probe.cpp
+// ----------------------------------------------------------------------------
+// 块 I/O 延迟探针的用户态部分。
+//
+// 内核侧 blocklat.bpf.c 用 64 个桶（0..31 读，32..63 写）记录 I/O 延迟直方图。
+// 这里的职责与 runqlat_probe 类似：
+//   1. Open：加载 BPF 对象并 attach block_rq_issue / block_rq_complete；
+//   2. Collect：读出 64 个 per-CPU 桶，前 32 个聚合为读延迟、后 32 个聚合为
+//      写延迟，再分别与上一窗口做增量汇总。
+//
+// 面试要点：读写分开统计，因为读路径（同步等待）和写路径（可能后台刷盘）
+// 的延迟特征不同，混在一起会掩盖问题。
+// ============================================================================
+
 #include "sentinel/blockio_probe.hpp"
 
 #include <algorithm>
@@ -11,6 +26,7 @@
 namespace sentinel {
 namespace {
 
+// libbpf 返回负 errno，转为可读字符串。
 std::string LibbpfError(int error) {
   const int positive = error < 0 ? -error : error;
   return std::strerror(positive);
@@ -18,10 +34,11 @@ std::string LibbpfError(int error) {
 
 }  // namespace
 
+// Pimpl：隐藏 libbpf 类型。
 struct BlockIoLatencyProbe::Impl {
   bpf_object* object{};
   std::vector<bpf_link*> links;
-  int histogram_fd{-1};
+  int histogram_fd{-1}; // block_latency_slots map fd
   int possible_cpus{};
 
   ~Impl() {
@@ -33,6 +50,7 @@ struct BlockIoLatencyProbe::Impl {
 BlockIoLatencyProbe::BlockIoLatencyProbe() = default;
 BlockIoLatencyProbe::~BlockIoLatencyProbe() = default;
 
+// Open：加载 BPF 对象并 attach。
 bool BlockIoLatencyProbe::Open(
     const std::filesystem::path& bpf_object_path) {
   impl_.reset();
@@ -82,6 +100,7 @@ bool BlockIoLatencyProbe::Open(
   return true;
 }
 
+// Collect：读取 64 个桶，聚合出读写两个直方图并与上一窗口做增量。
 std::optional<BlockIoLatencySummary> BlockIoLatencyProbe::Collect() {
   if (!impl_) {
     last_error_ = "block I/O latency probe is not open";
@@ -101,6 +120,7 @@ std::optional<BlockIoLatencySummary> BlockIoLatencyProbe::Collect() {
                     std::string(std::strerror(errno));
       return std::nullopt;
     }
+    // 桶 0..31 -> 读，桶 32..63 -> 写（slot = map_slot % 32）
     auto& histogram = map_slot < kLatencyHistogramSlots ? current_read
                                                         : current_write;
     const std::size_t slot = map_slot % kLatencyHistogramSlots;

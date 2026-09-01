@@ -1,3 +1,18 @@
+// ============================================================================
+// internal/prometheus/exporter.go
+// ----------------------------------------------------------------------------
+// Prometheus 文本格式导出器：把内存 Store 的快照转成 Prometheus 抓取格式。
+//
+// 为什么不用官方 client_golang 的 prometheus.Collector？
+// 因为我们的指标集合是动态的（节点数量、指标名都来自 Agent），
+// 手写文本格式让“指标名/标签/类型”完全由 Store 数据推导，更灵活；
+// 代价是要自己处理排序、标签转义和类型推断。
+//
+// 指标命名约定：sentinelmesh_ 前缀 + 指标名 sanitize（非法字符转下划线）。
+// 类型推断：以 _total 结尾视为 Counter，其余一律 Gauge
+// （Prometheus 的 rate/increase 能正确消费重启归零的 Counter）。
+// ============================================================================
+
 package prometheus
 
 import (
@@ -10,15 +25,18 @@ import (
 	"github.com/ccKccK-JF/SentinelMesh/internal/store"
 )
 
+// Exporter 实现 http.Handler，被 /metrics 路由挂载。
 type Exporter struct {
 	store *store.Memory
 }
 
+// sample 一条指标样本（标签 + 值）。
 type sample struct {
 	labels map[string]string
 	value  float64
 }
 
+// family 一个指标族（同名指标的不同标签样本集合）。
 type family struct {
 	help    string
 	typ     string
@@ -29,6 +47,8 @@ func New(memory *store.Memory) *Exporter {
 	return &Exporter{store: memory}
 }
 
+// ServeHTTP 输出 Prometheus 文本格式（text/plain; version=0.0.4）。
+// 输出顺序确定：指标族按名排序，同族样本按标签串排序，便于 diff 与测试。
 func (e *Exporter) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 	families := e.collect()
@@ -55,8 +75,10 @@ func (e *Exporter) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
+// collect 从 Store 收集全部指标并归类为 metric family。
 func (e *Exporter) collect() map[string]*family {
 	families := map[string]*family{}
+	// add 辅助：把样本塞进（必要时新建）对应指标族
 	add := func(name, help, typ string, labels map[string]string, value float64) {
 		metricFamily, ok := families[name]
 		if !ok {
@@ -66,6 +88,7 @@ func (e *Exporter) collect() map[string]*family {
 		metricFamily.samples = append(metricFamily.samples, sample{labels: labels, value: value})
 	}
 
+	// ---- 节点维度指标 ----
 	for _, node := range e.store.List() {
 		baseLabels := map[string]string{"node_id": node.NodeID, "hostname": node.Hostname}
 		connected := 0.0
@@ -86,6 +109,7 @@ func (e *Exporter) collect() map[string]*family {
 		add("sentinelmesh_node_kernel_events_total", "Kernel events accepted since the current node boot identity was registered.", "counter", baseLabels, float64(node.KernelEventCount))
 		add("sentinelmesh_node_last_seen_timestamp_seconds", "Unix timestamp of the last node activity.", "gauge", baseLabels, float64(node.LastSeen.UnixNano())/1e9)
 
+		// ---- Agent 上报的原始指标（动态名，需 sanitize）----
 		keys := make([]string, 0, len(node.Metrics))
 		for key := range node.Metrics {
 			keys = append(keys, key)
@@ -93,6 +117,7 @@ func (e *Exporter) collect() map[string]*family {
 		sort.Strings(keys)
 		for _, key := range keys {
 			metric := node.Metrics[key]
+			// key 形如 "name{label=value,...}"，导出时需要拆出原始指标名
 			originalName := key
 			if index := strings.IndexByte(originalName, '{'); index >= 0 {
 				originalName = originalName[:index]
@@ -108,6 +133,8 @@ func (e *Exporter) collect() map[string]*family {
 			add(name, "", typ, labels, metric.Value)
 		}
 	}
+
+	// ---- 路由维度指标 ----
 	routes := e.store.Routing()
 	add("sentinelmesh_routing_config_version", "Monotonic routing assignment version.", "gauge", nil, float64(routes.Version))
 	for _, assignment := range routes.Nodes {
@@ -126,6 +153,8 @@ func (e *Exporter) collect() map[string]*family {
 	return families
 }
 
+// sanitizeName 把任意指标名清洗为合法的 Prometheus 指标名
+// （字母/数字/下划线，且不能以数字开头）。
 func sanitizeName(name string) string {
 	var result strings.Builder
 	for _, character := range []byte(name) {
@@ -147,6 +176,7 @@ func sanitizeName(name string) string {
 	return sanitized
 }
 
+// copyLabels 拷贝标签 map（保留额外容量，性能微优化）。
 func copyLabels(labels map[string]string) map[string]string {
 	result := make(map[string]string, len(labels)+2)
 	for key, value := range labels {
@@ -155,6 +185,8 @@ func copyLabels(labels map[string]string) map[string]string {
 	return result
 }
 
+// formatLabels 把标签 map 渲染成 Prometheus 的 {k="v",...} 形式。
+// 按键排序保证输出确定性；键名同样要 sanitize。
 func formatLabels(labels map[string]string) string {
 	if len(labels) == 0 {
 		return ""
@@ -166,13 +198,14 @@ func formatLabels(labels map[string]string) string {
 	sort.Strings(keys)
 	parts := make([]string, 0, len(keys))
 	for _, key := range keys {
-		parts = append(parts, sanitizeName(key)+"=\""+escapeLabel(labels[key])+"\"")
+		parts = append(parts, sanitizeName(key)+`="`+escapeLabel(labels[key])+`"`)
 	}
 	return "{" + strings.Join(parts, ",") + "}"
 }
 
+// escapeLabel 转义标签值中的反斜杠、换行与双引号（Prometheus 文本格式要求）。
 func escapeLabel(value string) string {
 	value = strings.ReplaceAll(value, "\\", "\\\\")
 	value = strings.ReplaceAll(value, "\n", "\\n")
-	return strings.ReplaceAll(value, "\"", "\\\"")
+	return strings.ReplaceAll(value, `"`, `\"`)
 }

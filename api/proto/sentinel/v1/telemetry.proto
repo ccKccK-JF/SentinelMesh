@@ -1,3 +1,19 @@
+// ============================================================================
+// SentinelMesh 跨语言遥测契约
+// ----------------------------------------------------------------------------
+// 这份 proto 是整个项目的“单一事实来源”，被两套语言消费：
+//   - C++ Node Agent 通过 protoc 生成 C++ 代码（发送方）
+//   - Go Control Plane 通过 buf generate 生成 Go 代码（接收方）
+//
+// 设计要点：
+//   1. TelemetryService 是“双向流”（bidi stream）：Agent 持续上报，服务端
+//      逐条回 ACK，让 Agent 知道每个 sequence 是否被接受。
+//   2. oneof 把 Hello/Batch/Heartbeat 三种消息合并进同一个 Envelope，
+//      复用一条长连接，避免每次建连的开销。
+//   3. sequence（严格递增序号）是幂等语义的基石：服务端只接受比已接受
+//      序号更大的批次，从而实现断线重发不重复、不乱序。
+// ============================================================================
+
 syntax = "proto3";
 
 package sentinel.v1;
@@ -7,58 +23,81 @@ option go_package = "github.com/ccKccK-JF/SentinelMesh/gen/go/sentinel/v1;sentin
 // TelemetryService maintains a long-lived stream between a node agent and the
 // control plane. The server acknowledges each accepted batch and can later
 // piggyback configuration versions on acknowledgements.
+//
+// 遥测服务：一条长期存活的 gRPC 双向流。
+// 服务端对每个批次回 ACK，并顺带携带配置版本号，供 Agent 日后同步配置。
 service TelemetryService {
+  // Stream 是双向流 RPC：客户端可写 Envelope，服务端可回 CollectorAck。
+  // 顺序约定：流的第一个消息必须是 Hello（Agent 注册），之后才允许
+  // Batch / Heartbeat，否则服务端返回 FailedPrecondition。
   rpc Stream(stream TelemetryEnvelope) returns (stream CollectorAck);
 }
 
+// 遥测信封：使用 oneof 实现“同一流上多消息类型复用”。
+// oneof 字段在 wire 上只占一个字段号，兼容性好，且 Go 侧可以
+// 用 type switch 精确分派到不同处理分支。
 message TelemetryEnvelope {
   oneof payload {
-    AgentHello hello = 1;
-    MetricBatch batch = 2;
-    Heartbeat heartbeat = 3;
+    AgentHello hello = 1;      // 流建立的第一个消息：Agent 身份注册
+    MetricBatch batch = 2;     // 指标批次：窗口聚合后的遥测数据
+    Heartbeat heartbeat = 3;   // 心跳：只更新 LastSeen，不产生评分
   }
 }
 
+// Agent 注册消息：标识“这台机器的这次启动周期”。
+// boot_id 非常关键——它把 node_id 的生命周期再切分一次：
+// 系统重启后 boot_id 变化，控制面据此清空序列号与状态机，
+// 避免把“新启动周期的 sequence=1”误判成旧周期已经处理过。
 message AgentHello {
-  string node_id = 1;
-  string hostname = 2;
-  string ip_address = 3;
-  string agent_version = 4;
-  string boot_id = 5;
+  string node_id = 1;        // 节点 ID，须匹配 [a-zA-Z0-9][a-zA-Z0-9._-]{0,127}
+  string hostname = 2;       // 主机名（Agent 侧 gethostname）
+  string ip_address = 3;     // 网卡地址（当前实现留空）
+  string agent_version = 4;  // Agent 版本，便于控制面做兼容判断
+  string boot_id = 5;        // /sys/kernel/random/boot_id 的内容，标识一次启动
 }
 
+// 指标批次：一个窗口内聚合出来的全部指标 + 内核事件。
+// sequence 必须严格递增；observed_at 用 Unix 纳秒时间戳。
 message MetricBatch {
-  uint64 sequence = 1;
-  int64 observed_at_unix_nano = 2;
-  repeated MetricSample metrics = 3;
-  repeated KernelEvent kernel_events = 4;
+  uint64 sequence = 1;                 // 严格递增批次序号（按启动周期计）
+  int64 observed_at_unix_nano = 2;     // 采样时刻（Agent 本地时钟）
+  repeated MetricSample metrics = 3;   // 指标样本列表
+  repeated KernelEvent kernel_events = 4; // 内核异常事件列表（上限 1024）
 }
 
+// 单个指标样本：名称 + 值 + 单位 + 标签。
+// 服务端会用 “name{labels}” 拼成存储 key，并把同名同标签合并为一条。
 message MetricSample {
-  string name = 1;
-  double value = 2;
-  string unit = 3;
-  map<string, string> labels = 4;
+  string name = 1;                    // 指标名，如 "cpu.utilization.percent"
+  double value = 2;                   // 数值（服务端会过滤 NaN/Inf）
+  string unit = 3;                    // 单位，如 "percent"、"microseconds"
+  map<string, string> labels = 4;     // 维度标签，如 {interface="eth0"}
 }
 
+// 内核事件：用于解释“为什么指标变差”的异常线索。
+// 例如 TCP 重传、收到/发出 RST 时，不仅计数，还带进程信息。
 message KernelEvent {
-  string type = 1;
-  int64 observed_at_unix_nano = 2;
-  uint32 process_id = 3;
-  string process_name = 4;
-  uint64 latency_ns = 5;
-  map<string, string> attributes = 6;
+  string type = 1;                     // 事件类型，如 "tcp_retransmit"
+  int64 observed_at_unix_nano = 2;     // 事件发生时间（已从单调时钟换算到 Unix 时间）
+  uint32 process_id = 3;               // 触发事件的进程 PID
+  string process_name = 4;             // 进程名（最多 16 字节）
+  uint64 latency_ns = 5;               // 事件相关的延迟（纳秒），无则 0
+  map<string, string> attributes = 6;  // 预留的扩展属性
 }
 
+// 心跳：Agent 侧长时间没有新指标时（例如窗口未产出）发送，
+// 仅用于证明“连接还活着”，控制面只刷新 LastSeen。
 message Heartbeat {
-  uint64 last_sequence = 1;
-  int64 sent_at_unix_nano = 2;
+  uint64 last_sequence = 1;     // Agent 认为服务端已接受的最大序列
+  int64 sent_at_unix_nano = 2;  // 心跳发送时间
 }
 
+// 服务端确认：这是幂等协议的核心。
+// Agent 看到 accepted_sequence >= 自己发出的 sequence，才认为该批成功。
 message CollectorAck {
-  uint64 accepted_sequence = 1;
-  uint64 config_version = 2;
-  uint32 accepted_samples = 3;
-  uint32 dropped_samples = 4;
-  string message = 5;
+  uint64 accepted_sequence = 1;  // 服务端当前已接受的最大序列
+  uint64 config_version = 2;     // 顺带下发的配置版本号
+  uint32 accepted_samples = 3;   // 本批被接受的有效指标数
+  uint32 dropped_samples = 4;    // 本批被丢弃的指标数（超限/非法/重复）
+  string message = 5;            // 人类可读状态描述
 }

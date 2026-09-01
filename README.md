@@ -185,6 +185,8 @@ docker compose -f deploy/observability.compose.yml up -d --build
 
 完整内容见 [面试讲解手册](docs/interview-guide.md)。
 
+快速上手：带逐行中文注释的代码 + 学习路线见 [快速学习指南](docs/quick-learn.md)。
+
 ## 文档导航
 
 - [架构设计](docs/architecture.md)：组件边界、数据流、一致性和故障处理
